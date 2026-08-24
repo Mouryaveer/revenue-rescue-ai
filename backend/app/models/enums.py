@@ -1,0 +1,125 @@
+"""
+All application enumerations in one place.
+"""
+
+from enum import Enum
+
+
+# ── Failure / Event Types ──────────────────────────────────────
+class FailureReason(str, Enum):
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    EXPIRED_METHOD = "EXPIRED_METHOD"
+    GATEWAY_TEMPORARY = "GATEWAY_TEMPORARY"
+    BANK_DECLINE = "BANK_DECLINE"
+    AUTH_FAILURE = "AUTH_FAILURE"
+    MANDATE_FAILURE = "MANDATE_FAILURE"
+    SUBSCRIPTION_GRACE = "SUBSCRIPTION_GRACE"
+    CHECKOUT_ABANDONED = "CHECKOUT_ABANDONED"
+    UNKNOWN = "UNKNOWN"
+
+
+class RecoveryScenario(str, Enum):
+    FAILED_PAYMENT = "FAILED_PAYMENT"
+    FAILED_SUBSCRIPTION = "FAILED_SUBSCRIPTION"
+    CHECKOUT_ABANDONMENT = "CHECKOUT_ABANDONMENT"
+
+
+# ── Recovery Case States ───────────────────────────────────────
+class RecoveryCaseStatus(str, Enum):
+    DETECTED = "DETECTED"
+    DIAGNOSING = "DIAGNOSING"
+    STRATEGY_PROPOSED = "STRATEGY_PROPOSED"
+    POLICY_CHECK = "POLICY_CHECK"
+    ACTION_EXECUTION = "ACTION_EXECUTION"
+    WAITING = "WAITING"
+    VERIFICATION = "VERIFICATION"
+    RECOVERED = "RECOVERED"
+    RETRY_ELIGIBLE = "RETRY_ELIGIBLE"
+    ESCALATED = "ESCALATED"
+    STOPPED = "STOPPED"
+    FAILED = "FAILED"
+
+
+# ── Checkout Session States ────────────────────────────────────
+class CheckoutSessionStatus(str, Enum):
+    STARTED = "STARTED"
+    ABANDONED = "ABANDONED"
+    RECOVERY_MESSAGE_SENT = "RECOVERY_MESSAGE_SENT"
+    RESUMED = "RESUMED"
+    PAYMENT_ATTEMPTED = "PAYMENT_ATTEMPTED"
+    PAYMENT_SUCCESS = "PAYMENT_SUCCESS"
+    PAYMENT_FAILED = "PAYMENT_FAILED"
+    COMPLETED = "COMPLETED"
+
+
+# ── Transaction States ─────────────────────────────────────────
+class TransactionStatus(str, Enum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    REFUNDED = "REFUNDED"
+    CANCELLED = "CANCELLED"
+
+
+# ── Subscription States ────────────────────────────────────────
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    PAST_DUE = "PAST_DUE"
+    CANCELLED = "CANCELLED"
+    PAUSED = "PAUSED"
+    GRACE = "GRACE"
+
+
+# ── Recovery Strategy Codes ────────────────────────────────────
+class RecoveryStrategy(str, Enum):
+    RETRY_NOW = "RETRY_NOW"
+    SCHEDULE_RETRY = "SCHEDULE_RETRY"
+    PAYMENT_METHOD_UPDATE = "PAYMENT_METHOD_UPDATE"
+    REMINDER = "REMINDER"
+    CHECKOUT_RECOVERY = "CHECKOUT_RECOVERY"
+    PROMISE_TO_PAY = "PROMISE_TO_PAY"
+    ESCALATE = "ESCALATE"
+
+
+# ── Policy Decisions ───────────────────────────────────────────
+class PolicyDecision(str, Enum):
+    APPROVED = "APPROVED"
+    DENIED = "DENIED"
+    ESCALATE = "ESCALATE"
+    STOP = "STOP"
+
+
+# ── Audit Event Types ──────────────────────────────────────────
+class AuditEventType(str, Enum):
+    CASE_CREATED = "CASE_CREATED"
+    DIAGNOSIS_COMPLETED = "DIAGNOSIS_COMPLETED"
+    STRATEGY_PROPOSED = "STRATEGY_PROPOSED"
+    POLICY_APPROVED = "POLICY_APPROVED"
+    POLICY_DENIED = "POLICY_DENIED"
+    POLICY_ESCALATE = "POLICY_ESCALATE"
+    ACTION_EXECUTED = "ACTION_EXECUTED"
+    PAYMENT_ATTEMPTED = "PAYMENT_ATTEMPTED"
+    PAYMENT_SUCCESS = "PAYMENT_SUCCESS"
+    PAYMENT_FAILED = "PAYMENT_FAILED"
+    CHECKOUT_RECOVERY_SENT = "CHECKOUT_RECOVERY_SENT"
+    CHECKOUT_RESUMED = "CHECKOUT_RESUMED"
+    REVENUE_RECOVERED = "REVENUE_RECOVERED"
+    ESCALATED = "ESCALATED"
+    STOPPED = "STOPPED"
+    STRATEGY_REPLANNED = "STRATEGY_REPLANNED"
+    AGENT_RUN_STARTED = "AGENT_RUN_STARTED"
+    AGENT_RUN_COMPLETED = "AGENT_RUN_COMPLETED"
+    UNAUTHORIZED_ACTION_ATTEMPT = "UNAUTHORIZED_ACTION_ATTEMPT"
+
+
+# ── Actor Types ────────────────────────────────────────────────
+class ActorType(str, Enum):
+    SYSTEM = "SYSTEM"
+    RECOVERY_AGENT = "RECOVERY_AGENT"
+    POLICY_ENGINE = "POLICY_ENGINE"
+    ACTION_EXECUTOR = "ACTION_EXECUTOR"
+    RECOVERY_VERIFIER = "RECOVERY_VERIFIER"
+    PAYMENT_SIMULATOR = "PAYMENT_SIMULATOR"
+    COMMUNICATION_SIMULATOR = "COMMUNICATION_SIMULATOR"
+    HUMAN_OPERATOR = "HUMAN_OPERATOR"
+    RISK_DETECTOR = "RISK_DETECTOR"

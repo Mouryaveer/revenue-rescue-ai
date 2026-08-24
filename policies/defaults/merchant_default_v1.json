@@ -1,0 +1,30 @@
+{
+  "policy_id": "merchant_default_v1",
+  "version": 1,
+  "limits": {
+    "max_retries": 3,
+    "max_auto_recovery_amount_paise": 5000000,
+    "min_retry_interval_hours": 24
+  },
+  "communication": {
+    "respect_opt_out": true,
+    "max_messages_per_case": 3,
+    "max_checkout_recovery_messages": 2
+  },
+  "checkout": {
+    "abandonment_timeout_minutes": 30,
+    "max_recovery_messages": 2,
+    "min_checkout_amount_paise": 10000
+  },
+  "escalation": {
+    "after_failed_retries": 3,
+    "high_value_threshold_paise": 5000000,
+    "unknown_failure": true,
+    "low_confidence_threshold": 0.5
+  },
+  "stopping": {
+    "stop_on_payment_success": true,
+    "stop_on_opt_out": true,
+    "stop_on_suspension": true
+  }
+}

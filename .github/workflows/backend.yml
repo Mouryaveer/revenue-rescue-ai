@@ -1,0 +1,66 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ["backend/**", "agents/**", "policies/**", "simulator/**", "tests/**", "pyproject.toml"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-type-check:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install ruff mypy bandit
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy backend/app agents policies simulator --ignore-missing-imports
+      - run: bandit -r backend/app agents policies simulator -x tests
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: revenuerescue
+          POSTGRES_PASSWORD: revenuerescue
+          POSTGRES_DB: revenuerescue_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://revenuerescue:revenuerescue@localhost:5432/revenuerescue_test
+      LLM_PROVIDER: mock
+      SIMULATION_MODE: "true"
+      APP_SECRET_KEY: ci-test-secret
+      JWT_SECRET: ci-test-jwt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -r backend/requirements.txt
+      - name: Policy Engine Tests
+        run: pytest policies/tests/ -v
+      - name: Simulator Tests
+        run: pytest simulator/tests/ -v
+      - name: Agent Tests
+        run: pytest agents/tests/ -v
+      - name: Red-Team Tests
+        run: pytest tests/redteam/ -v
+      - name: Integration / E2E Tests
+        run: pytest tests/integration/ -v
+      - name: Backend Unit Tests
+        run: pytest backend/tests/ -v
