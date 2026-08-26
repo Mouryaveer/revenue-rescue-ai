@@ -50,3 +50,8 @@ test-results/
 *.csv
 baseline_results.csv
 ai_results.csv
+
+
+.vscode
+# .kiro intentionally tracked — contains project specs
+.github

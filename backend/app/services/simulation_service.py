@@ -56,7 +56,7 @@ class SimulationService:
         from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
         from app.services.policy_service import PolicyService
         from agents.graph.recovery_graph import RecoveryAgent
-        from agents.schemas.agent_schemas import AgentState
+        from agents.schemas.agent_schemas import make_initial_state as _make_state  # noqa: F401 (used in loop)
         from app.core.config import settings
 
         result = await self._db.execute(
@@ -110,7 +110,8 @@ class SimulationService:
                     recovered = vr.outcome == VerificationOutcome.RECOVERED
                 else:
                     # AI mode: run full agent
-                    state = AgentState(
+                    from agents.schemas.agent_schemas import make_initial_state
+                    state = make_initial_state(
                         case_id=f"sim-{run.simulation_id}-{i}",
                         agent_run_id=str(uuid.uuid4()),
                         event_type=event.event_type,
@@ -130,8 +131,9 @@ class SimulationService:
                         simulator_seed=seed + i,
                     )
                     final = agent.run(state)
-                    recovered = final.case_is_recovered
-                    if final.escalation_reason:
+                    # TypedDict is a plain dict at runtime — must use .get()
+                    recovered = final.get("case_is_recovered", False)
+                    if final.get("escalation_reason"):
                         escalated_cases += 1
 
                 if recovered:
@@ -179,15 +181,24 @@ class SimulationService:
         result = await self._db.execute(
             select(SimulationRun).order_by(SimulationRun.created_at.desc())
         )
-        return [
-            {
+        runs = []
+        for r in result.scalars().all():
+            runs.append({
                 "simulation_id": r.simulation_id,
                 "label": r.label,
                 "status": r.status,
                 "is_baseline": r.is_baseline,
-                "recovery_rate_pct": r.recovery_rate_pct,
-                "total_cases": r.total_cases,
+                "num_events": r.num_events,
+                "random_seed": r.random_seed,
+                "progress_pct": r.progress_pct or 0.0,
+                "recovery_rate_pct": r.recovery_rate_pct or 0.0,
+                "revenue_at_risk_paise": r.revenue_at_risk_paise or 0,
+                "revenue_recovered_paise": r.revenue_recovered_paise or 0,
+                "total_cases": r.total_cases or 0,
+                "recovered_cases": r.recovered_cases or 0,
+                "escalated_cases": r.escalated_cases or 0,
+                "policy_violations": r.policy_violations or 0,
+                "results": r.results,
                 "created_at": r.created_at,
-            }
-            for r in result.scalars().all()
-        ]
+            })
+        return runs

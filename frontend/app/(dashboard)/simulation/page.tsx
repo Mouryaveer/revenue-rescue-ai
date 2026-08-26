@@ -145,7 +145,7 @@ export default function SimulationPage() {
                       <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-brand-primary rounded-full transition-all duration-500" style={{ width: `${r.progress_pct ?? 0}%` }} />
                       </div>
-                      <p className="text-xs text-text-tertiary mt-1">{Math.round(r.progress_pct ?? 0)}% · {r.num_events} events</p>
+                      <p className="text-xs text-text-tertiary mt-1">{Math.round(r.progress_pct ?? 0)}% · {(r.num_events ?? 0).toLocaleString()} events</p>
                     </div>
                   ))}
             </div>
@@ -208,12 +208,12 @@ export default function SimulationPage() {
                           <td className="px-4 py-3">
                             <StatusCell status={r.status} />
                           </td>
-                          <td className="px-4 py-3 font-mono text-sm">{r.num_events.toLocaleString()}</td>
+                          <td className="px-4 py-3 font-mono text-sm">{(r.num_events ?? 0).toLocaleString()}</td>
                           <td className="px-4 py-3 font-mono text-sm text-success font-semibold">{formatINR(r.revenue_recovered_paise ?? 0)}</td>
                           <td className="px-4 py-3 font-mono text-sm font-bold">{(r.recovery_rate_pct ?? 0).toFixed(1)}%</td>
-                          <td className="px-4 py-3 font-mono text-xs text-text-tertiary">{r.random_seed}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-text-tertiary">{r.random_seed ?? "—"}</td>
                           <td className="px-4 py-3 font-mono text-sm">
-                            <span className={r.policy_violations === 0 ? "text-success" : "text-danger font-bold"}>
+                            <span className={clsx("font-semibold", r.policy_violations === 0 ? "text-success" : "text-danger font-bold")}>
                               {r.policy_violations ?? 0}
                             </span>
                           </td>

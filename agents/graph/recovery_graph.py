@@ -72,12 +72,12 @@ def route_after_verification(state: AgentState) -> str:
 
     if outcome == "COMMUNICATION_SENT":
         if replan_count < max_replans:
-            return "strategy"
+            return "replan"
         return "escalation"
 
     # Payment failed
     if replan_count < max_replans:
-        return "strategy"
+        return "replan"
 
     return "escalation"
 
@@ -115,6 +115,8 @@ def build_recovery_graph(
     graph.add_node("verification",     verify_node)
     graph.add_node("escalation",       node_escalation)
     graph.add_node("completion",       node_completion)
+    # Replan node: increments counter then routes back to strategy
+    graph.add_node("replan",           increment_replan)
 
     graph.set_entry_point("risk_detection")
 
@@ -126,6 +128,7 @@ def build_recovery_graph(
     graph.add_edge("action_execution", "observation")
     graph.add_edge("observation", "verification")
     graph.add_conditional_edges("verification", route_after_verification)
+    graph.add_edge("replan", "strategy")   # replan → strategy (counter already incremented)
     graph.add_edge("escalation", "completion")
     graph.add_edge("completion", END)
 

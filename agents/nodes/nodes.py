@@ -385,6 +385,9 @@ def node_completion(state: AgentState) -> dict:
     policy_result = state.get("policy_result") or {}
     if policy_result.get("decision") == "DENIED" and not state.get("case_is_recovered"):
         updates["case_is_stopped"] = True
+        # Propagate the denial reason so audit trail records it clearly
+        if not state.get("escalation_reason"):
+            updates["escalation_reason"] = policy_result.get("reason", "DENIED by policy")
     logger.info(
         "agent_run_complete",
         case_id=state.get("case_id"),
