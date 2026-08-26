@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.recovery import SimulationRunRequest, SimulationRunResponse
-from app.services.simulation_service import SimulationService
+from app.services.simulation_service import SimulationService, execute_run_standalone
 
 router = APIRouter()
 
@@ -22,12 +22,12 @@ async def run_simulation(
     db: AsyncSession = Depends(get_db),
 ) -> SimulationRunResponse:
     """
-    Start a batch simulation. Runs asynchronously in background.
+    Start a batch simulation. Runs asynchronously with its own DB session.
     All results are computed from real simulation data — never fabricated.
     """
     service = SimulationService(db)
     run = await service.create_run(request)
-    background_tasks.add_task(service.execute_run, str(run.id))
+    background_tasks.add_task(execute_run_standalone, str(run.id))
     return SimulationRunResponse(
         simulation_id=run.simulation_id,
         status=run.status,

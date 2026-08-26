@@ -33,4 +33,7 @@ async def create_policy(payload: dict, db: AsyncSession = Depends(get_db)) -> di
     Policy changes are versioned — old decisions remain explainable.
     """
     service = PolicyService(db)
-    return await service.create_policy(payload)
+    try:
+        return await service.create_policy(payload)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

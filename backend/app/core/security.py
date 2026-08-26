@@ -7,15 +7,15 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
+_BCRYPT_MAX_BYTES = 72
 
 
 class Role(str, Enum):
@@ -26,11 +26,16 @@ class Role(str, Enum):
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    secret = password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    return bcrypt.hashpw(secret, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    secret = plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    try:
+        return bcrypt.checkpw(secret, hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def create_access_token(subject: str, role: Role, extra: dict[str, Any] | None = None) -> str:

@@ -22,6 +22,20 @@ AGENT_VERSION = "0.1.0"
 DATASET_VERSION = "1.0.0"
 
 
+async def execute_run_standalone(run_db_id: str) -> None:
+    """Background entrypoint — must not reuse the request-scoped session."""
+    from app.core.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        service = SimulationService(db)
+        try:
+            await service.execute_run(run_db_id)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+
 class SimulationService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
@@ -90,26 +104,18 @@ class SimulationService:
             total_recovered = 0
             recovered_cases = 0
             escalated_cases = 0
-            results_by_scenario: dict = {}
+            policy_violations = 0
+            baseline = None
 
             for i, event in enumerate(events):
                 if run.is_baseline:
-                    # Baseline: fixed retry schedule, no AI diagnosis
-                    result_pay = simulator.execute_retry(
-                        case_id=f"baseline-{i}",
-                        customer_id=event.customer_id,
-                        customer_segment=event.customer.segment,
-                        failure_reason=event.failure_reason,
-                        retry_number=1,
-                        amount_paise=event.amount_paise,
-                    )
-                    vr = verifier.verify_payment_attempt(
-                        case_id=f"baseline-{i}",
-                        payment_result=result_pay,
-                    )
-                    recovered = vr.outcome == VerificationOutcome.RECOVERED
+                    from simulator.engine.baseline_simulator import BaselineSimulator
+
+                    if i == 0:
+                        baseline = BaselineSimulator(seed=seed)
+                    bl_result = baseline._process_event(event)
+                    recovered = bl_result.outcome == "RECOVERED"
                 else:
-                    # AI mode: run full agent
                     from agents.schemas.agent_schemas import make_initial_state
                     state = make_initial_state(
                         case_id=f"sim-{run.simulation_id}-{i}",
@@ -122,6 +128,7 @@ class SimulationService:
                         customer_segment=event.customer.segment,
                         customer_opted_out=event.customer.opted_out_communication,
                         customer_suspended=event.customer.is_suspended,
+                        checkout_timeout_elapsed=event.event_type == "CHECKOUT_ABANDONED",
                         llm_provider=settings.LLM_PROVIDER,
                     )
                     agent = RecoveryAgent(
@@ -131,10 +138,12 @@ class SimulationService:
                         simulator_seed=seed + i,
                     )
                     final = agent.run(state)
-                    # TypedDict is a plain dict at runtime — must use .get()
                     recovered = final.get("case_is_recovered", False)
                     if final.get("escalation_reason"):
                         escalated_cases += 1
+                    decision = (final.get("policy_result") or {}).get("decision")
+                    if decision == "DENIED":
+                        policy_violations += 1
 
                 if recovered:
                     total_recovered += event.amount_paise
@@ -153,7 +162,7 @@ class SimulationService:
             run.total_cases = len(events)
             run.recovered_cases = recovered_cases
             run.escalated_cases = escalated_cases
-            run.policy_violations = 0  # by design — tracked via audit
+            run.policy_violations = policy_violations
             run.results = {
                 "revenue_at_risk_paise": total_at_risk,
                 "revenue_recovered_paise": total_recovered,

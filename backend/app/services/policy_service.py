@@ -37,14 +37,31 @@ class PolicyService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
+    @staticmethod
+    def _default_policy_dict() -> dict:
+        raw = json.loads(_DEFAULT_POLICY_PATH.read_text())
+        return {
+            "policy_id": raw.get("policy_id", "merchant_default_v1"),
+            "version": raw.get("version", 1),
+            "is_active": True,
+            "config": raw,
+            "source": "file_default",
+        }
+
     async def get_active_policy(self) -> dict | None:
         result = await self._db.execute(
             select(Policy).where(Policy.is_active == True).order_by(Policy.version.desc()).limit(1)
         )
         policy = result.scalar_one_or_none()
         if policy:
-            return {"policy_id": policy.policy_id, "version": policy.version, "config": policy.config}
-        return None
+            return {
+                "policy_id": policy.policy_id,
+                "version": policy.version,
+                "is_active": True,
+                "config": policy.config,
+                "source": "database",
+            }
+        return self._default_policy_dict()
 
     async def get_active_policy_config(self) -> PolicyConfig:
         """Return a validated PolicyConfig. Falls back to default if DB has none."""
@@ -64,21 +81,19 @@ class PolicyService:
         ]
 
     async def create_policy(self, payload: dict) -> dict:
-        # Deactivate existing active policy
+        config = PolicyConfig(**payload)
         existing = await self._db.execute(select(Policy).where(Policy.is_active == True))
         for p in existing.scalars().all():
             p.is_active = False
 
-        policy_id = payload.get("policy_id", "merchant_default")
-        version = payload.get("version", 1)
-
+        stored = config.model_dump()
         new_policy = Policy(
-            policy_id=policy_id,
-            version=version,
+            policy_id=config.policy_id,
+            version=config.version,
             is_active=True,
-            config=payload,
+            config=stored,
             description=payload.get("description"),
         )
         self._db.add(new_policy)
         await self._db.flush()
-        return {"policy_id": policy_id, "version": version, "status": "CREATED"}
+        return {"policy_id": config.policy_id, "version": config.version, "status": "CREATED"}
