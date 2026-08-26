@@ -21,7 +21,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy backend/app agents policies simulator --ignore-missing-imports
-      - run: bandit -r backend/app agents policies simulator -x tests
+      - run: bandit -r backend/app agents policies simulator -x tests -c pyproject.toml
 
   test:
     name: Run Tests

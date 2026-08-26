@@ -184,7 +184,7 @@ class RazorpayTestProvider(PaymentProvider):
 def get_payment_provider(
     provider_name: str = "simulator",
     razorpay_key_id: str = "",
-    razorpay_key_secret: str = "",
+    razorpay_key_secret: str = "",  # nosec B107 — empty default, real value from env
     simulator_seed: int = 42,
 ) -> PaymentProvider:
     """

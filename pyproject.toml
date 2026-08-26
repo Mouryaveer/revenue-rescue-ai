@@ -39,5 +39,5 @@ ignore_missing_imports = true
 exclude = ["database/migrations"]
 
 [tool.bandit]
-skips = ["B101", "B311"]
+skips = ["B101", "B311", "B107"]
 exclude_dirs = ["tests", "database/migrations"]

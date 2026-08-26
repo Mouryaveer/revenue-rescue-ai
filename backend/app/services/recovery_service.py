@@ -72,7 +72,7 @@ class RecoveryService:
         try:
             cust_uuid = uuid.UUID(customer_id_str)
         except (ValueError, AttributeError):
-            cust_uuid = uuid.UUID(hashlib.md5(customer_id_str.encode()).hexdigest())
+            cust_uuid = uuid.UUID(hashlib.md5(customer_id_str.encode(), usedforsecurity=False).hexdigest())
 
         # Check if customer exists
         result = await self._db.execute(select(Customer).where(Customer.id == cust_uuid))
