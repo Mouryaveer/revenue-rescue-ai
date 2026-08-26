@@ -10,7 +10,6 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import RecoveryCaseStatus
 from app.models.recovery import RecoveryCase
 
 
@@ -19,15 +18,11 @@ class RecoveryCaseRepository:
         self._db = db
 
     async def get_by_id(self, case_id: str) -> RecoveryCase | None:
-        result = await self._db.execute(
-            select(RecoveryCase).where(RecoveryCase.id == uuid.UUID(case_id))
-        )
+        result = await self._db.execute(select(RecoveryCase).where(RecoveryCase.id == uuid.UUID(case_id)))
         return result.scalar_one_or_none()
 
     async def get_by_idempotency_key(self, key: str) -> RecoveryCase | None:
-        result = await self._db.execute(
-            select(RecoveryCase).where(RecoveryCase.source_event_key == key)
-        )
+        result = await self._db.execute(select(RecoveryCase).where(RecoveryCase.source_event_key == key))
         return result.scalar_one_or_none()
 
     async def list_cases(
@@ -54,14 +49,11 @@ class RecoveryCaseRepository:
 
     async def count_by_status(self) -> dict[str, int]:
         result = await self._db.execute(
-            select(RecoveryCase.status, func.count(RecoveryCase.id))
-            .group_by(RecoveryCase.status)
+            select(RecoveryCase.status, func.count(RecoveryCase.id)).group_by(RecoveryCase.status)
         )
         return {row[0]: row[1] for row in result.all()}
 
-    async def total_recovered_paise(
-        self, simulation_run_id: str | None = None
-    ) -> int:
+    async def total_recovered_paise(self, simulation_run_id: str | None = None) -> int:
         q = select(func.coalesce(func.sum(RecoveryCase.amount_recovered_paise), 0)).where(
             RecoveryCase.is_recovered == True  # noqa: E712
         )
@@ -70,9 +62,7 @@ class RecoveryCaseRepository:
         result = await self._db.execute(q)
         return result.scalar_one() or 0
 
-    async def total_at_risk_paise(
-        self, simulation_run_id: str | None = None
-    ) -> int:
+    async def total_at_risk_paise(self, simulation_run_id: str | None = None) -> int:
         q = select(func.coalesce(func.sum(RecoveryCase.amount_at_risk_paise), 0))
         if simulation_run_id:
             q = q.where(RecoveryCase.simulation_run_id == uuid.UUID(simulation_run_id))

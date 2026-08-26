@@ -2,11 +2,11 @@
 All application enumerations in one place.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
 # ── Failure / Event Types ──────────────────────────────────────
-class FailureReason(str, Enum):
+class FailureReason(StrEnum):
     INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
     EXPIRED_METHOD = "EXPIRED_METHOD"
     GATEWAY_TEMPORARY = "GATEWAY_TEMPORARY"
@@ -18,14 +18,14 @@ class FailureReason(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-class RecoveryScenario(str, Enum):
+class RecoveryScenario(StrEnum):
     FAILED_PAYMENT = "FAILED_PAYMENT"
     FAILED_SUBSCRIPTION = "FAILED_SUBSCRIPTION"
     CHECKOUT_ABANDONMENT = "CHECKOUT_ABANDONMENT"
 
 
 # ── Recovery Case States ───────────────────────────────────────
-class RecoveryCaseStatus(str, Enum):
+class RecoveryCaseStatus(StrEnum):
     DETECTED = "DETECTED"
     DIAGNOSING = "DIAGNOSING"
     STRATEGY_PROPOSED = "STRATEGY_PROPOSED"
@@ -41,7 +41,7 @@ class RecoveryCaseStatus(str, Enum):
 
 
 # ── Checkout Session States ────────────────────────────────────
-class CheckoutSessionStatus(str, Enum):
+class CheckoutSessionStatus(StrEnum):
     STARTED = "STARTED"
     ABANDONED = "ABANDONED"
     RECOVERY_MESSAGE_SENT = "RECOVERY_MESSAGE_SENT"
@@ -53,7 +53,7 @@ class CheckoutSessionStatus(str, Enum):
 
 
 # ── Transaction States ─────────────────────────────────────────
-class TransactionStatus(str, Enum):
+class TransactionStatus(StrEnum):
     PENDING = "PENDING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
@@ -62,7 +62,7 @@ class TransactionStatus(str, Enum):
 
 
 # ── Subscription States ────────────────────────────────────────
-class SubscriptionStatus(str, Enum):
+class SubscriptionStatus(StrEnum):
     ACTIVE = "ACTIVE"
     PAST_DUE = "PAST_DUE"
     CANCELLED = "CANCELLED"
@@ -71,7 +71,7 @@ class SubscriptionStatus(str, Enum):
 
 
 # ── Recovery Strategy Codes ────────────────────────────────────
-class RecoveryStrategy(str, Enum):
+class RecoveryStrategy(StrEnum):
     RETRY_NOW = "RETRY_NOW"
     SCHEDULE_RETRY = "SCHEDULE_RETRY"
     PAYMENT_METHOD_UPDATE = "PAYMENT_METHOD_UPDATE"
@@ -82,7 +82,7 @@ class RecoveryStrategy(str, Enum):
 
 
 # ── Policy Decisions ───────────────────────────────────────────
-class PolicyDecision(str, Enum):
+class PolicyDecision(StrEnum):
     APPROVED = "APPROVED"
     DENIED = "DENIED"
     ESCALATE = "ESCALATE"
@@ -90,7 +90,7 @@ class PolicyDecision(str, Enum):
 
 
 # ── Audit Event Types ──────────────────────────────────────────
-class AuditEventType(str, Enum):
+class AuditEventType(StrEnum):
     CASE_CREATED = "CASE_CREATED"
     DIAGNOSIS_COMPLETED = "DIAGNOSIS_COMPLETED"
     STRATEGY_PROPOSED = "STRATEGY_PROPOSED"
@@ -113,7 +113,7 @@ class AuditEventType(str, Enum):
 
 
 # ── Actor Types ────────────────────────────────────────────────
-class ActorType(str, Enum):
+class ActorType(StrEnum):
     SYSTEM = "SYSTEM"
     RECOVERY_AGENT = "RECOVERY_AGENT"
     POLICY_ENGINE = "POLICY_ENGINE"

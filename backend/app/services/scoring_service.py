@@ -10,24 +10,24 @@ Normalized to 0–100.
 from __future__ import annotations
 
 FAILURE_RECOVERABILITY = {
-    "INSUFFICIENT_FUNDS":   0.70,
-    "EXPIRED_METHOD":       0.55,
-    "GATEWAY_TEMPORARY":    0.85,
-    "BANK_DECLINE":         0.50,
-    "AUTH_FAILURE":         0.45,
-    "MANDATE_FAILURE":      0.60,
-    "SUBSCRIPTION_GRACE":   0.65,
-    "CHECKOUT_ABANDONED":   0.50,
-    "UNKNOWN":              0.15,
+    "INSUFFICIENT_FUNDS": 0.70,
+    "EXPIRED_METHOD": 0.55,
+    "GATEWAY_TEMPORARY": 0.85,
+    "BANK_DECLINE": 0.50,
+    "AUTH_FAILURE": 0.45,
+    "MANDATE_FAILURE": 0.60,
+    "SUBSCRIPTION_GRACE": 0.65,
+    "CHECKOUT_ABANDONED": 0.50,
+    "UNKNOWN": 0.15,
 }
 
 # Weights
-W_AMOUNT      = 0.20
-W_HISTORY     = 0.15
-W_FAILURE     = 0.35
-W_RETRY       = 0.15
-W_ENGAGEMENT  = 0.15
-W_RETRY_PEN   = 0.10
+W_AMOUNT = 0.20
+W_HISTORY = 0.15
+W_FAILURE = 0.35
+W_RETRY = 0.15
+W_ENGAGEMENT = 0.15
+W_RETRY_PEN = 0.10
 
 
 class RecoveryScoringService:
@@ -41,6 +41,7 @@ class RecoveryScoringService:
     ) -> float:
         # Amount score: higher amounts get slightly higher priority (log scale, capped)
         import math
+
         amount_score = min(math.log10(max(amount_paise, 1)) / 7.0, 1.0)
 
         history_score = success_rate  # historical success rate 0–1
@@ -49,12 +50,12 @@ class RecoveryScoringService:
         retry_penalty = min(retry_count * 0.10, 0.40)
 
         raw = (
-            W_AMOUNT     * amount_score
-            + W_HISTORY    * history_score
-            + W_FAILURE    * failure_score
-            + W_RETRY      * retry_success
+            W_AMOUNT * amount_score
+            + W_HISTORY * history_score
+            + W_FAILURE * failure_score
+            + W_RETRY * retry_success
             + W_ENGAGEMENT * engagement_score
-            - W_RETRY_PEN  * retry_penalty
+            - W_RETRY_PEN * retry_penalty
         )
         return round(max(0.0, min(raw * 100, 100.0)), 2)
 

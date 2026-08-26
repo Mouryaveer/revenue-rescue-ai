@@ -2,10 +2,7 @@
 Customer model — stores synthetic customer data only. No real PII beyond email hash.
 """
 
-import uuid
-
 from sqlalchemy import Boolean, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TimestampedModel
@@ -18,7 +15,7 @@ class Customer(TimestampedModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     email_display: Mapped[str] = mapped_column(String(255), nullable=False)  # synthetic email
-    phone_display: Mapped[str] = mapped_column(String(50), nullable=True)    # synthetic phone
+    phone_display: Mapped[str] = mapped_column(String(50), nullable=True)  # synthetic phone
     segment: Mapped[str] = mapped_column(String(50), nullable=False, default="standard")
     country: Mapped[str] = mapped_column(String(10), nullable=False, default="IN")
 

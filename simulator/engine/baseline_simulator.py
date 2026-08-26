@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
+from simulator.engine.payment_simulator import PaymentSimulator
 from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
 from simulator.generators.payment_generator import PaymentEvent
 
@@ -21,7 +21,7 @@ class BaselineResult:
     customer_id: str
     amount_paise: int
     failure_reason: str
-    outcome: str          # RECOVERED | FAILED | SKIPPED
+    outcome: str  # RECOVERED | FAILED | SKIPPED
     amount_recovered: int
     retry_count: int
 
@@ -86,9 +86,7 @@ class BaselineSimulator:
             "failed_count": total - len(recovered),
             "total_at_risk_paise": total_at_risk,
             "total_recovered_paise": total_recovered,
-            "recovery_rate_pct": round(
-                (total_recovered / total_at_risk * 100) if total_at_risk > 0 else 0.0, 2
-            ),
+            "recovery_rate_pct": round((total_recovered / total_at_risk * 100) if total_at_risk > 0 else 0.0, 2),
             "avg_retries": 1.0,  # baseline always does exactly 1 retry
             "escalations": 0,
             "policy_violations": 0,

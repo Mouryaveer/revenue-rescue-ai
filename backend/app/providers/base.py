@@ -13,19 +13,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class PaymentStatus(str, Enum):
-    PENDING   = "PENDING"
-    SUCCESS   = "SUCCESS"
-    FAILED    = "FAILED"
+class PaymentStatus(StrEnum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
 
-class ProviderMode(str, Enum):
-    SIMULATION    = "SIMULATION"    # Deterministic synthetic simulator
-    RAZORPAY_TEST = "RAZORPAY_TEST" # Razorpay test/sandbox mode
+class ProviderMode(StrEnum):
+    SIMULATION = "SIMULATION"  # Deterministic synthetic simulator
+    RAZORPAY_TEST = "RAZORPAY_TEST"  # Razorpay test/sandbox mode
 
 
 @dataclass
@@ -101,6 +101,6 @@ class PaymentProvider(ABC):
     def label(self) -> str:
         """Human-readable label for the UI environment badge."""
         return {
-            ProviderMode.SIMULATION:    "SIMULATION MODE",
+            ProviderMode.SIMULATION: "SIMULATION MODE",
             ProviderMode.RAZORPAY_TEST: "RAZORPAY TEST MODE",
         }[self.mode]

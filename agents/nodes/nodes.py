@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -37,6 +37,7 @@ def _add_trace(state: AgentState, node: str) -> dict:
 
 # ── Node 1: Risk Detection (deterministic) ────────────────────────────────────
 
+
 def node_risk_detection(state: AgentState) -> dict:
     trace = _add_trace(state, "risk_detection")
     logger.info("node_risk_detection", case_id=state.get("case_id"), event_type=state.get("event_type"))
@@ -55,6 +56,7 @@ def node_risk_detection(state: AgentState) -> dict:
 
 # ── Node 2: Context Builder (deterministic) ───────────────────────────────────
 
+
 def node_context_builder(state: AgentState) -> dict:
     trace = _add_trace(state, "context_builder")
     logger.info("node_context_builder", case_id=state.get("case_id"))
@@ -62,6 +64,7 @@ def node_context_builder(state: AgentState) -> dict:
 
 
 # ── Node 3: Diagnosis (LLM or fallback) ───────────────────────────────────────
+
 
 def node_diagnosis(state: AgentState, llm: LLMProvider) -> dict:
     trace = _add_trace(state, "diagnosis")
@@ -90,21 +93,23 @@ def node_diagnosis(state: AgentState, llm: LLMProvider) -> dict:
         diag = _fallback_diagnosis(failure_reason)
 
     elapsed = int((time.perf_counter() - t0) * 1000)
-    logger.info("diagnosis_complete", case_id=state.get("case_id"), confidence=diag.diagnosis_confidence, latency_ms=elapsed)
+    logger.info(
+        "diagnosis_complete", case_id=state.get("case_id"), confidence=diag.diagnosis_confidence, latency_ms=elapsed
+    )
     return {**trace, "case_diagnosis": diag}
 
 
 def _fallback_diagnosis(failure_reason: str) -> DiagnosisOutput:
     strategy_map = {
-        "INSUFFICIENT_FUNDS":   ("SCHEDULE_RETRY", 0.75),
-        "EXPIRED_METHOD":       ("PAYMENT_METHOD_UPDATE", 0.60),
-        "GATEWAY_TEMPORARY":    ("RETRY_NOW", 0.85),
-        "BANK_DECLINE":         ("SCHEDULE_RETRY", 0.55),
-        "AUTH_FAILURE":         ("REMINDER", 0.50),
-        "MANDATE_FAILURE":      ("SCHEDULE_RETRY", 0.65),
-        "SUBSCRIPTION_GRACE":   ("SCHEDULE_RETRY", 0.65),
-        "CHECKOUT_ABANDONED":   ("CHECKOUT_RECOVERY", 0.55),
-        "UNKNOWN":              ("ESCALATE", 0.20),
+        "INSUFFICIENT_FUNDS": ("SCHEDULE_RETRY", 0.75),
+        "EXPIRED_METHOD": ("PAYMENT_METHOD_UPDATE", 0.60),
+        "GATEWAY_TEMPORARY": ("RETRY_NOW", 0.85),
+        "BANK_DECLINE": ("SCHEDULE_RETRY", 0.55),
+        "AUTH_FAILURE": ("REMINDER", 0.50),
+        "MANDATE_FAILURE": ("SCHEDULE_RETRY", 0.65),
+        "SUBSCRIPTION_GRACE": ("SCHEDULE_RETRY", 0.65),
+        "CHECKOUT_ABANDONED": ("CHECKOUT_RECOVERY", 0.55),
+        "UNKNOWN": ("ESCALATE", 0.20),
     }
     strategy, confidence = strategy_map.get(failure_reason, ("ESCALATE", 0.20))
     return DiagnosisOutput(
@@ -120,6 +125,7 @@ def _fallback_diagnosis(failure_reason: str) -> DiagnosisOutput:
 
 
 # ── Node 4: Strategy (LLM or fallback) ───────────────────────────────────────
+
 
 def node_strategy(state: AgentState, llm: LLMProvider) -> dict:
     trace = _add_trace(state, "strategy")
@@ -167,6 +173,7 @@ def _fallback_strategy(diag: DiagnosisOutput, amount_paise: int) -> StrategyOutp
 
 # ── Node 5: Policy Check (deterministic) ─────────────────────────────────────
 
+
 def node_policy_check(state: AgentState, policy_engine: PolicyEngine) -> dict:
     trace = _add_trace(state, "policy_check")
     strat: StrategyOutput | None = state.get("case_strategy")
@@ -207,17 +214,18 @@ def node_policy_check(state: AgentState, policy_engine: PolicyEngine) -> dict:
 
 def _strategy_to_action_type(strategy: str) -> str:
     return {
-        "RETRY_NOW":             "retry_payment",
-        "SCHEDULE_RETRY":        "schedule_retry",
+        "RETRY_NOW": "retry_payment",
+        "SCHEDULE_RETRY": "schedule_retry",
         "PAYMENT_METHOD_UPDATE": "request_payment_method_update",
-        "REMINDER":              "send_payment_reminder",
-        "CHECKOUT_RECOVERY":     "send_checkout_recovery",
-        "PROMISE_TO_PAY":        "create_promise_to_pay",
-        "ESCALATE":              "escalate_to_human",
+        "REMINDER": "send_payment_reminder",
+        "CHECKOUT_RECOVERY": "send_checkout_recovery",
+        "PROMISE_TO_PAY": "create_promise_to_pay",
+        "ESCALATE": "escalate_to_human",
     }.get(strategy, "escalate_to_human")
 
 
 # ── Node 6: Action Execution (APPROVED actions only) ──────────────────────────
+
 
 def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dict:
     trace = _add_trace(state, "action_execution")
@@ -230,11 +238,14 @@ def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dic
             decision=policy_result.get("decision"),
             reason=policy_result.get("reason"),
         )
-        return {**trace, "execution_result": {
-            "executed": False,
-            "reason": policy_result.get("reason"),
-            "decision": policy_result.get("decision"),
-        }}
+        return {
+            **trace,
+            "execution_result": {
+                "executed": False,
+                "reason": policy_result.get("reason"),
+                "decision": policy_result.get("decision"),
+            },
+        }
 
     strat: StrategyOutput | None = state.get("case_strategy")
     strategy = strat.recovery_strategy if strat else "ESCALATE"
@@ -252,9 +263,12 @@ def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dic
             currency=str(state.get("currency", "INR")),
         )
         updates["execution_result"] = {
-            "executed": True, "type": "payment_retry",
-            "attempt_id": result.attempt_id, "transaction_id": result.transaction_id,
-            "outcome": result.outcome.value, "failure_reason": result.failure_reason,
+            "executed": True,
+            "type": "payment_retry",
+            "attempt_id": result.attempt_id,
+            "transaction_id": result.transaction_id,
+            "outcome": result.outcome.value,
+            "failure_reason": result.failure_reason,
             "amount_paise": result.amount_paise,
         }
         updates["retry_count"] = (state.get("retry_count", 0)) + 1
@@ -271,8 +285,10 @@ def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dic
         updates["communication_count"] = (state.get("communication_count", 0)) + 1
         updates["checkout_recovery_message_count"] = (state.get("checkout_recovery_message_count", 0)) + 1
         updates["execution_result"] = {
-            "executed": True, "type": "checkout_recovery",
-            "message_id": comm_result.message_id, "delivered": comm_result.delivered,
+            "executed": True,
+            "type": "checkout_recovery",
+            "message_id": comm_result.message_id,
+            "delivered": comm_result.delivered,
             "customer_resumed": comm_result.customer_resumed,
             "transaction_id": payment_result.transaction_id if payment_result else None,
             "outcome": payment_result.outcome.value if payment_result else "NO_RESUME",
@@ -282,8 +298,11 @@ def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dic
     elif strategy in ("REMINDER", "PAYMENT_METHOD_UPDATE"):
         updates["communication_count"] = (state.get("communication_count", 0)) + 1
         updates["execution_result"] = {
-            "executed": True, "type": "communication", "strategy": strategy,
-            "message_id": f"MSG-{uuid.uuid4().hex[:8].upper()}", "delivered": True,
+            "executed": True,
+            "type": "communication",
+            "strategy": strategy,
+            "message_id": f"MSG-{uuid.uuid4().hex[:8].upper()}",
+            "delivered": True,
         }
 
     else:
@@ -294,6 +313,7 @@ def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dic
 
 # ── Node 7: Observation ───────────────────────────────────────────────────────
 
+
 def node_observation(state: AgentState) -> dict:
     trace = _add_trace(state, "observation")
     logger.info("observation", case_id=state.get("case_id"), result=state.get("execution_result"))
@@ -301,6 +321,7 @@ def node_observation(state: AgentState) -> dict:
 
 
 # ── Node 8: Verification (deterministic) ─────────────────────────────────────
+
 
 def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
     trace = _add_trace(state, "verification")
@@ -313,6 +334,7 @@ def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
 
     if exec_type == "checkout_recovery":
         from simulator.engine.payment_simulator import SimulatedOutcome, SimulatedPaymentResult
+
         outcome_str = execution_result.get("outcome", "NO_RESUME")
         if outcome_str == "NO_RESUME":
             vr = verifier.verify_checkout_recovery(
@@ -322,29 +344,35 @@ def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
             )
         else:
             mock = SimulatedPaymentResult(
-                attempt_id="", transaction_id=execution_result.get("transaction_id", ""),
-                outcome=SimulatedOutcome(outcome_str), failure_reason=None,
+                attempt_id="",
+                transaction_id=execution_result.get("transaction_id", ""),
+                outcome=SimulatedOutcome(outcome_str),
+                failure_reason=None,
                 amount_paise=execution_result.get("amount_paise", 0),
                 currency=str(state.get("currency", "INR")),
-                executed_at=datetime.now(timezone.utc),
+                executed_at=datetime.now(UTC),
             )
             vr = verifier.verify_checkout_recovery(
-                case_id=str(state.get("case_id")), payment_result=mock,
+                case_id=str(state.get("case_id")),
+                payment_result=mock,
                 case_is_already_recovered=state.get("case_is_recovered", False),
             )
 
     elif exec_type == "payment_retry":
         from simulator.engine.payment_simulator import SimulatedOutcome, SimulatedPaymentResult
+
         mock = SimulatedPaymentResult(
-            attempt_id="", transaction_id=execution_result.get("transaction_id", ""),
+            attempt_id="",
+            transaction_id=execution_result.get("transaction_id", ""),
             outcome=SimulatedOutcome(execution_result.get("outcome", "FAILED")),
             failure_reason=execution_result.get("failure_reason"),
             amount_paise=execution_result.get("amount_paise", 0),
             currency=str(state.get("currency", "INR")),
-            executed_at=datetime.now(timezone.utc),
+            executed_at=datetime.now(UTC),
         )
         vr = verifier.verify_payment_attempt(
-            case_id=str(state.get("case_id")), payment_result=mock,
+            case_id=str(state.get("case_id")),
+            payment_result=mock,
             case_is_already_recovered=state.get("case_is_recovered", False),
         )
     else:
@@ -352,15 +380,21 @@ def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
 
     is_recovered = vr.outcome == VerificationOutcome.RECOVERED
     vr_dict = {
-        "verified": is_recovered, "outcome": vr.outcome.value,
+        "verified": is_recovered,
+        "outcome": vr.outcome.value,
         "transaction_id": vr.transaction_id,
         "amount_recovered_paise": vr.amount_recovered_paise,
-        "reason": vr.reason, "verified_at": vr.verified_at.isoformat(),
+        "reason": vr.reason,
+        "verified_at": vr.verified_at.isoformat(),
     }
 
     if is_recovered:
-        logger.info("revenue_verified_recovered", case_id=state.get("case_id"),
-                    amount_paise=vr.amount_recovered_paise, transaction_id=vr.transaction_id)
+        logger.info(
+            "revenue_verified_recovered",
+            case_id=state.get("case_id"),
+            amount_paise=vr.amount_recovered_paise,
+            transaction_id=vr.transaction_id,
+        )
         return {**trace, "verification_result": vr_dict, "case_is_recovered": True, "case_is_stopped": True}
 
     return {**trace, "verification_result": vr_dict}
@@ -368,16 +402,18 @@ def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
 
 # ── Node 9: Escalation (deterministic) ───────────────────────────────────────
 
+
 def node_escalation(state: AgentState) -> dict:
     trace = _add_trace(state, "escalation")
-    reason = (state.get("escalation_reason")
-              or (state.get("policy_result") or {}).get("reason")
-              or "Escalation triggered")
+    reason = (
+        state.get("escalation_reason") or (state.get("policy_result") or {}).get("reason") or "Escalation triggered"
+    )
     logger.info("case_escalated", case_id=state.get("case_id"), reason=reason)
     return {**trace, "escalation_reason": reason, "case_is_stopped": True}
 
 
 # ── Node 10: Completion ───────────────────────────────────────────────────────
+
 
 def node_completion(state: AgentState) -> dict:
     trace = _add_trace(state, "completion")

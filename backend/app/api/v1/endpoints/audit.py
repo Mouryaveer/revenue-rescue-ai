@@ -21,9 +21,7 @@ async def get_audit_log(
     db: AsyncSession = Depends(get_db),
 ) -> list[AuditEventResponse]:
     service = AuditService(db)
-    events = await service.list_events(
-        event_type=event_type, actor=actor, limit=limit, offset=offset
-    )
+    events = await service.list_events(event_type=event_type, actor=actor, limit=limit, offset=offset)
     return [
         AuditEventResponse(
             id=str(e.id),

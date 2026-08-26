@@ -2,7 +2,6 @@
 Unit tests for RecoveryScoringService.
 """
 
-import pytest
 from app.services.scoring_service import RecoveryScoringService
 
 

@@ -4,7 +4,7 @@ Roles: MERCHANT_ADMIN, OPERATOR, AUDITOR, SYSTEM
 """
 
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import bcrypt
@@ -18,7 +18,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 _BCRYPT_MAX_BYTES = 72
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     MERCHANT_ADMIN = "MERCHANT_ADMIN"
     OPERATOR = "OPERATOR"
     AUDITOR = "AUDITOR"
@@ -64,4 +64,5 @@ def require_role(*roles: Role):
         if user.get("role") not in [r.value for r in roles]:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return user
+
     return _check

@@ -4,10 +4,11 @@ Provides 7 deterministic scenarios for a controlled 5-minute demo.
 Reset reseeds the demo data. All data is synthetic.
 """
 
+import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
-import structlog
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -97,13 +98,14 @@ async def reset_demo(
 
 async def _reset_demo_task() -> None:
     """Background task: drop and reseed demo data."""
-    import asyncio
-    import sys
     import pathlib
+    import sys
+
     sys.path.insert(0, str(pathlib.Path(__file__).parents[6]))
     sys.path.insert(0, str(pathlib.Path(__file__).parents[6] / "backend"))
     try:
         from database.seed.seed_demo import seed
+
         await seed()
         logger.info("demo_reset_complete")
     except Exception as e:
@@ -120,11 +122,13 @@ async def run_demo_scenario(
     scenario = next((s for s in DEMO_SCENARIOS if s["id"] == scenario_id), None)
     if not scenario:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail=f"Demo scenario {scenario_id} not found")
 
     import uuid
+
+    from app.schemas.events import CheckoutAbandonedEvent, PaymentFailedEvent
     from app.services.recovery_service import RecoveryService
-    from app.schemas.events import PaymentFailedEvent, CheckoutAbandonedEvent
 
     ikey = f"demo-{scenario_id}-{uuid.uuid4().hex[:8]}"
 
@@ -151,6 +155,7 @@ async def run_demo_scenario(
         case = await service.create_case_from_payment_failure(event)
 
     from app.api.v1.endpoints.events import _run_agent_background
+
     background_tasks.add_task(_run_agent_background, str(case.id))
 
     return {

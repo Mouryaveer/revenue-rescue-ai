@@ -7,7 +7,6 @@ Reproducible via random_seed.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
 import structlog
 from sqlalchemy import select
@@ -64,18 +63,18 @@ class SimulationService:
         Execute the batch simulation.
         Generates synthetic events, runs recovery (or baseline), records results.
         """
+        from agents.graph.recovery_graph import RecoveryAgent
+        from agents.schemas.agent_schemas import (
+            make_initial_state as _make_state,  # noqa: F401 (used in loop)
+        )
+        from app.core.config import settings
+        from app.services.policy_service import PolicyService
+        from simulator.engine.payment_simulator import PaymentSimulator
+        from simulator.engine.recovery_verifier import RecoveryVerifier
         from simulator.generators.customer_generator import CustomerGenerator
         from simulator.generators.payment_generator import PaymentEventGenerator
-        from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
-        from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
-        from app.services.policy_service import PolicyService
-        from agents.graph.recovery_graph import RecoveryAgent
-        from agents.schemas.agent_schemas import make_initial_state as _make_state  # noqa: F401 (used in loop)
-        from app.core.config import settings
 
-        result = await self._db.execute(
-            select(SimulationRun).where(SimulationRun.id == uuid.UUID(run_db_id))
-        )
+        result = await self._db.execute(select(SimulationRun).where(SimulationRun.id == uuid.UUID(run_db_id)))
         run = result.scalar_one_or_none()
         if not run:
             return
@@ -87,8 +86,8 @@ class SimulationService:
             seed = run.random_seed
             cust_gen = CustomerGenerator(seed=seed)
             pay_gen = PaymentEventGenerator(seed=seed)
-            simulator = PaymentSimulator(seed=seed)
-            verifier = RecoveryVerifier()
+            PaymentSimulator(seed=seed)
+            RecoveryVerifier()
 
             customers = cust_gen.generate(run.num_customers)
             events = pay_gen.generate_batch(
@@ -117,6 +116,7 @@ class SimulationService:
                     recovered = bl_result.outcome == "RECOVERED"
                 else:
                     from agents.schemas.agent_schemas import make_initial_state
+
                     state = make_initial_state(
                         case_id=f"sim-{run.simulation_id}-{i}",
                         agent_run_id=str(uuid.uuid4()),
@@ -181,33 +181,31 @@ class SimulationService:
             logger.error("simulation_failed", error=str(e))
 
     async def get_run(self, simulation_id: str) -> SimulationRun | None:
-        result = await self._db.execute(
-            select(SimulationRun).where(SimulationRun.simulation_id == simulation_id)
-        )
+        result = await self._db.execute(select(SimulationRun).where(SimulationRun.simulation_id == simulation_id))
         return result.scalar_one_or_none()
 
     async def list_runs(self) -> list[dict]:
-        result = await self._db.execute(
-            select(SimulationRun).order_by(SimulationRun.created_at.desc())
-        )
+        result = await self._db.execute(select(SimulationRun).order_by(SimulationRun.created_at.desc()))
         runs = []
         for r in result.scalars().all():
-            runs.append({
-                "simulation_id": r.simulation_id,
-                "label": r.label,
-                "status": r.status,
-                "is_baseline": r.is_baseline,
-                "num_events": r.num_events,
-                "random_seed": r.random_seed,
-                "progress_pct": r.progress_pct or 0.0,
-                "recovery_rate_pct": r.recovery_rate_pct or 0.0,
-                "revenue_at_risk_paise": r.revenue_at_risk_paise or 0,
-                "revenue_recovered_paise": r.revenue_recovered_paise or 0,
-                "total_cases": r.total_cases or 0,
-                "recovered_cases": r.recovered_cases or 0,
-                "escalated_cases": r.escalated_cases or 0,
-                "policy_violations": r.policy_violations or 0,
-                "results": r.results,
-                "created_at": r.created_at,
-            })
+            runs.append(
+                {
+                    "simulation_id": r.simulation_id,
+                    "label": r.label,
+                    "status": r.status,
+                    "is_baseline": r.is_baseline,
+                    "num_events": r.num_events,
+                    "random_seed": r.random_seed,
+                    "progress_pct": r.progress_pct or 0.0,
+                    "recovery_rate_pct": r.recovery_rate_pct or 0.0,
+                    "revenue_at_risk_paise": r.revenue_at_risk_paise or 0,
+                    "revenue_recovered_paise": r.revenue_recovered_paise or 0,
+                    "total_cases": r.total_cases or 0,
+                    "recovered_cases": r.recovered_cases or 0,
+                    "escalated_cases": r.escalated_cases or 0,
+                    "policy_violations": r.policy_violations or 0,
+                    "results": r.results,
+                    "created_at": r.created_at,
+                }
+            )
         return runs

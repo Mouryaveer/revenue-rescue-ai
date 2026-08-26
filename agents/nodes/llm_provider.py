@@ -24,6 +24,7 @@ class LLMProvider(ABC):
 class OpenAIProvider(LLMProvider):
     def __init__(self, api_key: str, model: str = "gpt-4o") -> None:
         from openai import OpenAI
+
         self._client = OpenAI(api_key=api_key)
         self._model = model
 
@@ -48,29 +49,36 @@ class MockProvider(LLMProvider):
     """
 
     STRATEGY_MAP = {
-        "INSUFFICIENT_FUNDS":   ("SCHEDULE_RETRY", 24,  0.75),
-        "EXPIRED_METHOD":       ("PAYMENT_METHOD_UPDATE", 0, 0.60),
-        "GATEWAY_TEMPORARY":    ("RETRY_NOW",       2,  0.85),
-        "BANK_DECLINE":         ("SCHEDULE_RETRY",  48, 0.55),
-        "AUTH_FAILURE":         ("REMINDER",        0,  0.50),
-        "MANDATE_FAILURE":      ("SCHEDULE_RETRY",  24, 0.65),
-        "SUBSCRIPTION_GRACE":   ("SCHEDULE_RETRY",  24, 0.65),
-        "CHECKOUT_ABANDONED":   ("CHECKOUT_RECOVERY", 0, 0.55),
-        "UNKNOWN":              ("ESCALATE",         0, 0.20),
+        "INSUFFICIENT_FUNDS": ("SCHEDULE_RETRY", 24, 0.75),
+        "EXPIRED_METHOD": ("PAYMENT_METHOD_UPDATE", 0, 0.60),
+        "GATEWAY_TEMPORARY": ("RETRY_NOW", 2, 0.85),
+        "BANK_DECLINE": ("SCHEDULE_RETRY", 48, 0.55),
+        "AUTH_FAILURE": ("REMINDER", 0, 0.50),
+        "MANDATE_FAILURE": ("SCHEDULE_RETRY", 24, 0.65),
+        "SUBSCRIPTION_GRACE": ("SCHEDULE_RETRY", 24, 0.65),
+        "CHECKOUT_ABANDONED": ("CHECKOUT_RECOVERY", 0, 0.55),
+        "UNKNOWN": ("ESCALATE", 0, 0.20),
     }
 
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         # Extract failure_reason precisely — look for "Failure Reason: <VALUE>" pattern first
         import re
+
         match = re.search(r"Failure Reason:\s*(\w+)", user_prompt)
         if match:
             failure_reason = match.group(1)
         else:
             # Fallback: search for known reason codes in priority order
             priority_order = [
-                "CHECKOUT_ABANDONED", "MANDATE_FAILURE", "SUBSCRIPTION_GRACE",
-                "INSUFFICIENT_FUNDS", "EXPIRED_METHOD", "GATEWAY_TEMPORARY",
-                "AUTH_FAILURE", "BANK_DECLINE", "UNKNOWN",
+                "CHECKOUT_ABANDONED",
+                "MANDATE_FAILURE",
+                "SUBSCRIPTION_GRACE",
+                "INSUFFICIENT_FUNDS",
+                "EXPIRED_METHOD",
+                "GATEWAY_TEMPORARY",
+                "AUTH_FAILURE",
+                "BANK_DECLINE",
+                "UNKNOWN",
             ]
             failure_reason = "UNKNOWN"
             for reason in priority_order:

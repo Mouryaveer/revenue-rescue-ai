@@ -5,7 +5,6 @@ Policy service — load, store, and version merchant policies.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from sqlalchemy import select
@@ -49,9 +48,7 @@ class PolicyService:
         }
 
     async def get_active_policy(self) -> dict | None:
-        result = await self._db.execute(
-            select(Policy).where(Policy.is_active == True).order_by(Policy.version.desc()).limit(1)
-        )
+        result = await self._db.execute(select(Policy).where(Policy.is_active).order_by(Policy.version.desc()).limit(1))
         policy = result.scalar_one_or_none()
         if policy:
             return {
@@ -82,7 +79,7 @@ class PolicyService:
 
     async def create_policy(self, payload: dict) -> dict:
         config = PolicyConfig(**payload)
-        existing = await self._db.execute(select(Policy).where(Policy.is_active == True))
+        existing = await self._db.execute(select(Policy).where(Policy.is_active))
         for p in existing.scalars().all():
             p.is_active = False
 

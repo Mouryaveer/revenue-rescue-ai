@@ -3,9 +3,10 @@ Schema validation unit tests.
 Ensures Pydantic models reject invalid input at the API boundary.
 """
 
-import pytest
 import uuid
-from app.schemas.events import PaymentFailedEvent, CheckoutAbandonedEvent
+
+import pytest
+from app.schemas.events import CheckoutAbandonedEvent, PaymentFailedEvent
 
 
 def test_valid_payment_failed_event():

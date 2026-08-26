@@ -21,11 +21,21 @@ from app.models.enums import (
 class RecoveryCase(TimestampedModel):
     __tablename__ = "recovery_cases"
 
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True)
-    transaction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=True)
-    subscription_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=True)
-    checkout_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("checkout_sessions.id"), nullable=True)
-    simulation_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("simulation_runs.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
+    )
+    transaction_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=True
+    )
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=True
+    )
+    checkout_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkout_sessions.id"), nullable=True
+    )
+    simulation_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("simulation_runs.id"), nullable=True
+    )
 
     scenario: Mapped[RecoveryScenario] = mapped_column(String(50), nullable=False)
     failure_reason: Mapped[FailureReason] = mapped_column(String(50), nullable=False)
@@ -65,8 +75,12 @@ class RecoveryCase(TimestampedModel):
 class RecoveryAction(TimestampedModel):
     __tablename__ = "recovery_actions"
 
-    recovery_case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False, index=True)
-    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=True)
+    recovery_case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False, index=True
+    )
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=True
+    )
 
     action_type: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g. retry_payment
     strategy_code: Mapped[RecoveryStrategy] = mapped_column(String(50), nullable=False)
@@ -93,7 +107,9 @@ class RecoveryAction(TimestampedModel):
 class AgentRun(TimestampedModel):
     __tablename__ = "agent_runs"
 
-    recovery_case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False, index=True)
+    recovery_case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False, index=True
+    )
 
     llm_provider: Mapped[str] = mapped_column(String(50), nullable=False)  # openai / mock
     run_status: Mapped[str] = mapped_column(String(30), nullable=False, default="RUNNING")
@@ -112,8 +128,12 @@ class AgentRun(TimestampedModel):
 class AgentDecision(TimestampedModel):
     __tablename__ = "agent_decisions"
 
-    agent_run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=False, index=True)
-    recovery_case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False)
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id"), nullable=False, index=True
+    )
+    recovery_case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False
+    )
 
     node: Mapped[str] = mapped_column(String(100), nullable=False)
     decision_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -128,7 +148,9 @@ class AgentDecision(TimestampedModel):
 class Escalation(TimestampedModel):
     __tablename__ = "escalations"
 
-    recovery_case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False, index=True)
+    recovery_case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=False, index=True
+    )
 
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     escalation_type: Mapped[str] = mapped_column(String(100), nullable=False)

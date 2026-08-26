@@ -48,7 +48,7 @@ class PolicyEngine:
     def policy(self) -> PolicyConfig:
         return self._policy
 
-    def authorize(self, context: "AuthorizationContext") -> PolicyEvaluationResult:
+    def authorize(self, context: AuthorizationContext) -> PolicyEvaluationResult:
         """
         Run the full sequential authorization pipeline.
         Returns a PolicyEvaluationResult — NEVER raises exceptions to callers.
@@ -81,7 +81,7 @@ class PolicyEngine:
                 violations=["POLICY_ENGINE_UNEXPECTED_ERROR"],
             )
 
-    def _run_pipeline(self, ctx: "AuthorizationContext") -> PolicyEvaluationResult:
+    def _run_pipeline(self, ctx: AuthorizationContext) -> PolicyEvaluationResult:
         p = self._policy
         violations: list[str] = []
 
@@ -123,8 +123,7 @@ class PolicyEngine:
         if ctx.action_type in ("send_payment_reminder", "send_checkout_recovery", "change_communication_channel"):
             if ctx.communication_count >= p.communication.max_messages_per_case:
                 return self._deny(
-                    f"Communication count {ctx.communication_count} >= max "
-                    f"{p.communication.max_messages_per_case}",
+                    f"Communication count {ctx.communication_count} >= max {p.communication.max_messages_per_case}",
                     "MAX_COMMUNICATIONS_EXCEEDED",
                     violations,
                 )
@@ -140,8 +139,7 @@ class PolicyEngine:
                 )
             if ctx.amount_paise < p.checkout.min_checkout_amount_paise:
                 return self._deny(
-                    f"Checkout amount {ctx.amount_paise} below minimum "
-                    f"{p.checkout.min_checkout_amount_paise} paise",
+                    f"Checkout amount {ctx.amount_paise} below minimum {p.checkout.min_checkout_amount_paise} paise",
                     "CHECKOUT_AMOUNT_TOO_LOW",
                     violations,
                 )
@@ -165,7 +163,9 @@ class PolicyEngine:
 
         # ── Step 7: Escalation triggers ───────────────────────────────
         if ctx.failure_reason == "UNKNOWN" and p.escalation.unknown_failure:
-            return self._escalate("Unknown failure reason — escalate for human review", "UNKNOWN_FAILURE_REASON", violations)
+            return self._escalate(
+                "Unknown failure reason — escalate for human review", "UNKNOWN_FAILURE_REASON", violations
+            )
 
         if ctx.diagnosis_confidence is not None and ctx.diagnosis_confidence < p.escalation.low_confidence_threshold:
             return self._escalate(

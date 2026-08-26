@@ -9,10 +9,8 @@ NOTE: AgentState uses TypedDict (not Pydantic BaseModel) for LangGraph 0.2+ comp
 
 from __future__ import annotations
 
-from typing import Any, Optional
-from typing_extensions import TypedDict
-
 from pydantic import BaseModel, Field, field_validator
+from typing_extensions import TypedDict
 
 
 class DiagnosisOutput(BaseModel):
@@ -31,9 +29,15 @@ class DiagnosisOutput(BaseModel):
     @classmethod
     def validate_failure_category(cls, v: str) -> str:
         valid = {
-            "INSUFFICIENT_FUNDS", "EXPIRED_METHOD", "GATEWAY_TEMPORARY",
-            "BANK_DECLINE", "AUTH_FAILURE", "MANDATE_FAILURE",
-            "SUBSCRIPTION_GRACE", "CHECKOUT_ABANDONED", "UNKNOWN",
+            "INSUFFICIENT_FUNDS",
+            "EXPIRED_METHOD",
+            "GATEWAY_TEMPORARY",
+            "BANK_DECLINE",
+            "AUTH_FAILURE",
+            "MANDATE_FAILURE",
+            "SUBSCRIPTION_GRACE",
+            "CHECKOUT_ABANDONED",
+            "UNKNOWN",
         }
         if v not in valid:
             raise ValueError(f"Invalid failure_category: {v}. Must be one of {valid}")
@@ -43,8 +47,13 @@ class DiagnosisOutput(BaseModel):
     @classmethod
     def validate_strategy(cls, v: str) -> str:
         valid = {
-            "RETRY_NOW", "SCHEDULE_RETRY", "PAYMENT_METHOD_UPDATE",
-            "REMINDER", "CHECKOUT_RECOVERY", "PROMISE_TO_PAY", "ESCALATE",
+            "RETRY_NOW",
+            "SCHEDULE_RETRY",
+            "PAYMENT_METHOD_UPDATE",
+            "REMINDER",
+            "CHECKOUT_RECOVERY",
+            "PROMISE_TO_PAY",
+            "ESCALATE",
         }
         if v not in valid:
             raise ValueError(f"Invalid strategy: {v}. Must be one of {valid}")
@@ -57,16 +66,23 @@ class StrategyOutput(BaseModel):
     recovery_strategy: str = Field(description="Must match RecoveryStrategy enum")
     reason: str = Field(description="Why this strategy — based on evidence only")
     requested_action: dict = Field(description="Action spec: {type, delay_hours?, channel?}")
-    expected_recovery_paise: int = Field(ge=0, description="Expected recovery in paise — heuristic only, never authoritative")
+    expected_recovery_paise: int = Field(
+        ge=0, description="Expected recovery in paise — heuristic only, never authoritative"
+    )
     confidence: float = Field(ge=0.0, le=1.0)
-    fallback_strategy: Optional[str] = None
+    fallback_strategy: str | None = None
 
     @field_validator("recovery_strategy")
     @classmethod
     def validate_strategy(cls, v: str) -> str:
         valid = {
-            "RETRY_NOW", "SCHEDULE_RETRY", "PAYMENT_METHOD_UPDATE",
-            "REMINDER", "CHECKOUT_RECOVERY", "PROMISE_TO_PAY", "ESCALATE",
+            "RETRY_NOW",
+            "SCHEDULE_RETRY",
+            "PAYMENT_METHOD_UPDATE",
+            "REMINDER",
+            "CHECKOUT_RECOVERY",
+            "PROMISE_TO_PAY",
+            "ESCALATE",
         }
         if v not in valid:
             raise ValueError(f"Invalid strategy: {v}")
@@ -92,8 +108,8 @@ class AgentState(TypedDict, total=False):
     customer_segment: str
     customer_opted_out: bool
     customer_suspended: bool
-    subscription_id: Optional[str]
-    checkout_session_id: Optional[str]
+    subscription_id: str | None
+    checkout_session_id: str | None
 
     # Case state
     retry_count: int
@@ -101,21 +117,21 @@ class AgentState(TypedDict, total=False):
     case_is_recovered: bool
     case_is_stopped: bool
     payment_already_succeeded: bool
-    hours_since_last_attempt: Optional[float]
+    hours_since_last_attempt: float | None
     checkout_timeout_elapsed: bool
     checkout_recovery_message_count: int
 
     # Node outputs
-    case_diagnosis: Optional[DiagnosisOutput]   # renamed from 'diagnosis' to avoid LangGraph conflict
-    case_strategy: Optional[StrategyOutput]      # renamed from 'strategy'
-    policy_result: Optional[dict]
-    execution_result: Optional[dict]
-    verification_result: Optional[dict]
+    case_diagnosis: DiagnosisOutput | None  # renamed from 'diagnosis' to avoid LangGraph conflict
+    case_strategy: StrategyOutput | None  # renamed from 'strategy'
+    policy_result: dict | None
+    execution_result: dict | None
+    verification_result: dict | None
 
     # Control flow
     current_node: str
-    error: Optional[str]
-    escalation_reason: Optional[str]
+    error: str | None
+    escalation_reason: str | None
     replan_count: int
     max_replans: int
 
@@ -140,12 +156,12 @@ def make_initial_state(
     communication_count: int = 0,
     case_is_recovered: bool = False,
     payment_already_succeeded: bool = False,
-    hours_since_last_attempt: Optional[float] = None,
+    hours_since_last_attempt: float | None = None,
     checkout_timeout_elapsed: bool = False,
     checkout_recovery_message_count: int = 0,
     llm_provider: str = "mock",
-    subscription_id: Optional[str] = None,
-    checkout_session_id: Optional[str] = None,
+    subscription_id: str | None = None,
+    checkout_session_id: str | None = None,
 ) -> AgentState:
     """Build the initial agent state with all required defaults."""
     return AgentState(

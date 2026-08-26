@@ -6,9 +6,13 @@ All data is synthetic. No real money. No real credentials.
 
 from __future__ import annotations
 
-import uuid
-
-from app.providers.base import PaymentProvider, PaymentResult, PaymentStatus, ProviderMode, RetryResult
+from app.providers.base import (
+    PaymentProvider,
+    PaymentResult,
+    PaymentStatus,
+    ProviderMode,
+    RetryResult,
+)
 from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
 
 

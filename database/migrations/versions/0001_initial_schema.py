@@ -5,15 +5,17 @@ Revises:
 Create Date: 2026-08-23
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
+
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -124,7 +126,9 @@ def upgrade() -> None:
         "subscriptions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("customer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False),
-        sa.Column("payment_method_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("payment_methods.id"), nullable=True),
+        sa.Column(
+            "payment_method_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("payment_methods.id"), nullable=True
+        ),
         sa.Column("plan_name", sa.String(255), nullable=False),
         sa.Column("plan_interval", sa.String(50), nullable=False),
         sa.Column("amount_paise", sa.Integer, nullable=False),
@@ -142,7 +146,9 @@ def upgrade() -> None:
         "checkout_sessions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("customer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False),
-        sa.Column("payment_method_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("payment_methods.id"), nullable=True),
+        sa.Column(
+            "payment_method_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("payment_methods.id"), nullable=True
+        ),
         sa.Column("session_token", sa.String(128), nullable=False, unique=True),
         sa.Column("amount_paise", sa.Integer, nullable=False),
         sa.Column("currency", sa.String(10), nullable=False, server_default="INR"),
@@ -166,10 +172,16 @@ def upgrade() -> None:
         "transactions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("customer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False),
-        sa.Column("payment_method_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("payment_methods.id"), nullable=True),
+        sa.Column(
+            "payment_method_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("payment_methods.id"), nullable=True
+        ),
         sa.Column("subscription_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subscriptions.id"), nullable=True),
-        sa.Column("checkout_session_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("checkout_sessions.id"), nullable=True),
-        sa.Column("simulation_run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id"), nullable=True),
+        sa.Column(
+            "checkout_session_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("checkout_sessions.id"), nullable=True
+        ),
+        sa.Column(
+            "simulation_run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id"), nullable=True
+        ),
         sa.Column("idempotency_key", sa.String(128), nullable=False, unique=True),
         sa.Column("amount_paise", sa.Integer, nullable=False),
         sa.Column("currency", sa.String(10), nullable=False, server_default="INR"),
@@ -192,8 +204,12 @@ def upgrade() -> None:
         sa.Column("customer_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("customers.id"), nullable=False),
         sa.Column("transaction_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("transactions.id"), nullable=True),
         sa.Column("subscription_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("subscriptions.id"), nullable=True),
-        sa.Column("checkout_session_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("checkout_sessions.id"), nullable=True),
-        sa.Column("simulation_run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id"), nullable=True),
+        sa.Column(
+            "checkout_session_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("checkout_sessions.id"), nullable=True
+        ),
+        sa.Column(
+            "simulation_run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id"), nullable=True
+        ),
         sa.Column("scenario", sa.String(50), nullable=False),
         sa.Column("failure_reason", sa.String(50), nullable=False),
         sa.Column("status", sa.String(30), nullable=False, server_default="DETECTED"),
@@ -217,9 +233,10 @@ def upgrade() -> None:
     op.create_index("ix_recovery_cases_source_event_key", "recovery_cases", ["source_event_key"])
 
     # Back-fill FK from checkout_sessions → recovery_cases
-    op.add_column("checkout_sessions",
-        sa.Column("recovery_case_id", postgresql.UUID(as_uuid=True),
-                  sa.ForeignKey("recovery_cases.id"), nullable=True))
+    op.add_column(
+        "checkout_sessions",
+        sa.Column("recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=True),
+    )
 
     # ── payment_failures ───────────────────────────────────────────────────
     op.create_table(
@@ -244,7 +261,9 @@ def upgrade() -> None:
     op.create_table(
         "agent_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False),
+        sa.Column(
+            "recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False
+        ),
         sa.Column("llm_provider", sa.String(50), nullable=False),
         sa.Column("run_status", sa.String(30), nullable=False, server_default="RUNNING"),
         sa.Column("node_trace", postgresql.JSONB, nullable=True),
@@ -263,7 +282,9 @@ def upgrade() -> None:
         "agent_decisions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("agent_run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("agent_runs.id"), nullable=False),
-        sa.Column("recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False),
+        sa.Column(
+            "recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False
+        ),
         sa.Column("node", sa.String(100), nullable=False),
         sa.Column("decision_type", sa.String(100), nullable=False),
         sa.Column("input_data", postgresql.JSONB, nullable=True),
@@ -279,7 +300,9 @@ def upgrade() -> None:
     op.create_table(
         "recovery_actions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False),
+        sa.Column(
+            "recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False
+        ),
         sa.Column("agent_run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("agent_runs.id"), nullable=True),
         sa.Column("action_type", sa.String(100), nullable=False),
         sa.Column("strategy_code", sa.String(50), nullable=False),
@@ -303,7 +326,9 @@ def upgrade() -> None:
     op.create_table(
         "escalations",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False),
+        sa.Column(
+            "recovery_case_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("recovery_cases.id"), nullable=False
+        ),
         sa.Column("reason", sa.Text, nullable=False),
         sa.Column("escalation_type", sa.String(100), nullable=False),
         sa.Column("resolved", sa.Boolean, nullable=False, server_default="false"),

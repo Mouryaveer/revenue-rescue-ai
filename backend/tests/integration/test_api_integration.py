@@ -5,14 +5,14 @@ Full DB integration tests run inside Docker via `make test`.
 """
 
 import uuid
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
+from datetime import UTC
 
 # ── Schema-level validation tests (no DB required) ────────────────────────────
 
+
 def test_payment_failed_event_schema_valid():
     from app.schemas.events import PaymentFailedEvent
+
     e = PaymentFailedEvent(
         idempotency_key=str(uuid.uuid4()),
         customer_id=str(uuid.uuid4()),
@@ -27,6 +27,7 @@ def test_payment_failed_event_schema_valid():
 
 def test_checkout_abandoned_event_schema_valid():
     from app.schemas.events import CheckoutAbandonedEvent
+
     e = CheckoutAbandonedEvent(
         idempotency_key=str(uuid.uuid4()),
         customer_id=str(uuid.uuid4()),
@@ -39,6 +40,7 @@ def test_checkout_abandoned_event_schema_valid():
 
 def test_simulation_request_defaults():
     from app.schemas.recovery import SimulationRunRequest
+
     req = SimulationRunRequest()
     assert req.num_customers == 100
     assert req.num_events == 500
@@ -48,6 +50,7 @@ def test_simulation_request_defaults():
 
 def test_metrics_overview_schema():
     from app.schemas.recovery import MetricsOverview
+
     m = MetricsOverview(
         revenue_at_risk_paise=1000000,
         revenue_recovered_paise=450000,
@@ -67,9 +70,11 @@ def test_metrics_overview_schema():
 
 
 def test_recovery_case_summary_schema():
+    from datetime import datetime
+
     from app.schemas.recovery import RecoveryCaseSummary
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
+
+    now = datetime.now(UTC)
     s = RecoveryCaseSummary(
         id=str(uuid.uuid4()),
         scenario="FAILED_PAYMENT",
@@ -93,8 +98,10 @@ def test_recovery_case_summary_schema():
 
 # ── Idempotency key generation ─────────────────────────────────────────────────
 
+
 def test_idempotency_key_deterministic():
     from app.core.idempotency import make_idempotency_key
+
     k1 = make_idempotency_key("cust-001", 499900, "INSUFFICIENT_FUNDS")
     k2 = make_idempotency_key("cust-001", 499900, "INSUFFICIENT_FUNDS")
     assert k1 == k2
@@ -103,6 +110,7 @@ def test_idempotency_key_deterministic():
 
 def test_idempotency_key_different_for_different_inputs():
     from app.core.idempotency import make_idempotency_key
+
     k1 = make_idempotency_key("cust-001", 499900, "INSUFFICIENT_FUNDS")
     k2 = make_idempotency_key("cust-002", 499900, "INSUFFICIENT_FUNDS")
     assert k1 != k2
@@ -110,20 +118,33 @@ def test_idempotency_key_different_for_different_inputs():
 
 # ── Scoring service ────────────────────────────────────────────────────────────
 
+
 def test_scoring_all_failure_reasons():
     from app.services.scoring_service import RecoveryScoringService
+
     s = RecoveryScoringService()
-    for reason in ["INSUFFICIENT_FUNDS", "EXPIRED_METHOD", "GATEWAY_TEMPORARY",
-                   "BANK_DECLINE", "AUTH_FAILURE", "MANDATE_FAILURE",
-                   "SUBSCRIPTION_GRACE", "CHECKOUT_ABANDONED", "UNKNOWN"]:
+    for reason in [
+        "INSUFFICIENT_FUNDS",
+        "EXPIRED_METHOD",
+        "GATEWAY_TEMPORARY",
+        "BANK_DECLINE",
+        "AUTH_FAILURE",
+        "MANDATE_FAILURE",
+        "SUBSCRIPTION_GRACE",
+        "CHECKOUT_ABANDONED",
+        "UNKNOWN",
+    ]:
         score = s.score(failure_reason=reason, amount_paise=299900, retry_count=0)
         assert 0 <= score <= 100, f"Score out of range for {reason}: {score}"
 
 
 # ── Policy config loading ──────────────────────────────────────────────────────
 
+
 def test_default_policy_loads():
-    import json, pathlib
+    import json
+    import pathlib
+
     path = pathlib.Path("policies/defaults/merchant_default_v1.json")
     assert path.exists()
     config = json.loads(path.read_text())
@@ -135,8 +156,11 @@ def test_default_policy_loads():
 
 
 def test_default_policy_parses_as_policy_config():
-    import json, pathlib
+    import json
+    import pathlib
+
     from policies.schemas.policy_schema import PolicyConfig
+
     raw = json.loads(pathlib.Path("policies/defaults/merchant_default_v1.json").read_text())
     policy = PolicyConfig(**raw)
     assert policy.policy_id == "merchant_default_v1"

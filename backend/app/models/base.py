@@ -3,7 +3,7 @@ Shared base model with UUID pk, created_at, updated_at.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -15,12 +15,8 @@ from app.core.database import Base
 class TimestampedModel(Base):
     __abstract__ = True
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

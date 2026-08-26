@@ -11,13 +11,13 @@ from __future__ import annotations
 import random
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 
 from simulator.generators.payment_generator import PaymentEventGenerator
 
 
-class SimulatedOutcome(str, Enum):
+class SimulatedOutcome(StrEnum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     PENDING = "PENDING"
@@ -39,7 +39,7 @@ class SimulatedPaymentResult:
 @dataclass
 class SimulatedCommunicationResult:
     message_id: str
-    channel: str           # email | sms | push
+    channel: str  # email | sms | push
     delivered: bool
     customer_resumed: bool  # did customer act on message?
     sent_at: datetime
@@ -108,7 +108,7 @@ class PaymentSimulator:
             failure_reason=fail_reason,
             amount_paise=amount_paise,
             currency=currency,
-            executed_at=datetime.now(timezone.utc),
+            executed_at=datetime.now(UTC),
             notes=f"Simulated retry #{retry_number} for case {case_id}",
         )
 
@@ -157,7 +157,7 @@ class PaymentSimulator:
             channel="email",
             delivered=True,
             customer_resumed=resumed,
-            sent_at=datetime.now(timezone.utc),
+            sent_at=datetime.now(UTC),
         )
 
         if not resumed:
@@ -173,7 +173,7 @@ class PaymentSimulator:
             failure_reason=None if success else "INSUFFICIENT_FUNDS",
             amount_paise=amount_paise,
             currency=currency,
-            executed_at=datetime.now(timezone.utc),
+            executed_at=datetime.now(UTC),
             notes=f"Checkout resumed for case {case_id} after recovery message #{message_number}",
         )
 

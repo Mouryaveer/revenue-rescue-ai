@@ -2,15 +2,15 @@
 Simulator unit tests — verifies payment outcomes and checkout recovery simulation.
 """
 
-import pytest
+from datetime import UTC
 
 from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
 from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
 from simulator.generators.customer_generator import CustomerGenerator
 from simulator.generators.payment_generator import PaymentEventGenerator
 
-
 # ── Customer Generator ─────────────────────────────────────────────────────────
+
 
 def test_customer_generator_reproducible():
     """Two generators with the same seed produce the same customer IDs and segments."""
@@ -47,6 +47,7 @@ def test_customer_segments_varied():
 
 
 # ── Payment Event Generator ────────────────────────────────────────────────────
+
 
 def test_payment_events_reproducible():
     cg = CustomerGenerator(seed=42)
@@ -90,17 +91,24 @@ def test_all_amounts_positive():
 
 # ── Payment Simulator ──────────────────────────────────────────────────────────
 
+
 def test_payment_simulator_reproducible():
     sim1 = PaymentSimulator(seed=42)
     sim2 = PaymentSimulator(seed=42)
     r1 = sim1.execute_retry(
-        case_id="c1", customer_id="u1", customer_segment="premium",
-        failure_reason="INSUFFICIENT_FUNDS", retry_number=2,
+        case_id="c1",
+        customer_id="u1",
+        customer_segment="premium",
+        failure_reason="INSUFFICIENT_FUNDS",
+        retry_number=2,
         amount_paise=100000,
     )
     r2 = sim2.execute_retry(
-        case_id="c1", customer_id="u1", customer_segment="premium",
-        failure_reason="INSUFFICIENT_FUNDS", retry_number=2,
+        case_id="c1",
+        customer_id="u1",
+        customer_segment="premium",
+        failure_reason="INSUFFICIENT_FUNDS",
+        retry_number=2,
         amount_paise=100000,
     )
     assert r1.outcome == r2.outcome
@@ -112,8 +120,12 @@ def test_gateway_temporary_high_success_on_retry2():
     for seed in range(100):
         sim = PaymentSimulator(seed=seed)
         r = sim.execute_retry(
-            case_id="c", customer_id="u", customer_segment="standard",
-            failure_reason="GATEWAY_TEMPORARY", retry_number=2, amount_paise=50000,
+            case_id="c",
+            customer_id="u",
+            customer_segment="standard",
+            failure_reason="GATEWAY_TEMPORARY",
+            retry_number=2,
+            amount_paise=50000,
         )
         if r.outcome == SimulatedOutcome.SUCCESS:
             successes += 1
@@ -125,8 +137,12 @@ def test_expired_method_always_fails():
     for seed in range(20):
         sim = PaymentSimulator(seed=seed)
         r = sim.execute_retry(
-            case_id="c", customer_id="u", customer_segment="standard",
-            failure_reason="EXPIRED_METHOD", retry_number=1, amount_paise=50000,
+            case_id="c",
+            customer_id="u",
+            customer_segment="standard",
+            failure_reason="EXPIRED_METHOD",
+            retry_number=1,
+            amount_paise=50000,
         )
         assert r.outcome == SimulatedOutcome.FAILED
 
@@ -134,8 +150,11 @@ def test_expired_method_always_fails():
 def test_checkout_recovery_returns_tuple():
     sim = PaymentSimulator(seed=42)
     comm, payment = sim.execute_checkout_recovery(
-        case_id="c1", customer_id="u1", customer_segment="premium",
-        amount_paise=300000, message_number=1,
+        case_id="c1",
+        customer_id="u1",
+        customer_segment="premium",
+        amount_paise=300000,
+        message_number=1,
     )
     assert comm.message_id is not None
     assert comm.is_synthetic is True
@@ -148,8 +167,11 @@ def test_checkout_no_resume_returns_none_payment():
     for seed in range(50):
         sim = PaymentSimulator(seed=seed)
         comm, payment = sim.execute_checkout_recovery(
-            case_id="c", customer_id="u", customer_segment="at_risk",
-            amount_paise=50000, message_number=1,
+            case_id="c",
+            customer_id="u",
+            customer_segment="at_risk",
+            amount_paise=50000,
+            message_number=1,
         )
         if not comm.customer_resumed:
             assert payment is None
@@ -161,23 +183,33 @@ def test_checkout_no_resume_returns_none_payment():
 def test_simulator_result_is_synthetic():
     sim = PaymentSimulator(seed=42)
     r = sim.execute_retry(
-        case_id="c", customer_id="u", customer_segment="standard",
-        failure_reason="BANK_DECLINE", retry_number=1, amount_paise=50000,
+        case_id="c",
+        customer_id="u",
+        customer_segment="standard",
+        failure_reason="BANK_DECLINE",
+        retry_number=1,
+        amount_paise=50000,
     )
     assert r.is_synthetic is True
 
 
 # ── Recovery Verifier ──────────────────────────────────────────────────────────
 
+
 def test_verifier_marks_success_as_recovered():
+    from datetime import datetime
+
     from simulator.engine.payment_simulator import SimulatedPaymentResult
-    from datetime import datetime, timezone
+
     verifier = RecoveryVerifier()
     result = SimulatedPaymentResult(
-        attempt_id="A1", transaction_id="T1",
+        attempt_id="A1",
+        transaction_id="T1",
         outcome=SimulatedOutcome.SUCCESS,
-        failure_reason=None, amount_paise=499900, currency="INR",
-        executed_at=datetime.now(timezone.utc),
+        failure_reason=None,
+        amount_paise=499900,
+        currency="INR",
+        executed_at=datetime.now(UTC),
     )
     vr = verifier.verify_payment_attempt(case_id="c1", payment_result=result)
     assert vr.outcome == VerificationOutcome.RECOVERED
@@ -185,14 +217,19 @@ def test_verifier_marks_success_as_recovered():
 
 
 def test_verifier_marks_failure_as_failed():
+    from datetime import datetime
+
     from simulator.engine.payment_simulator import SimulatedPaymentResult
-    from datetime import datetime, timezone
+
     verifier = RecoveryVerifier()
     result = SimulatedPaymentResult(
-        attempt_id="A1", transaction_id="T1",
+        attempt_id="A1",
+        transaction_id="T1",
         outcome=SimulatedOutcome.FAILED,
-        failure_reason="INSUFFICIENT_FUNDS", amount_paise=499900, currency="INR",
-        executed_at=datetime.now(timezone.utc),
+        failure_reason="INSUFFICIENT_FUNDS",
+        amount_paise=499900,
+        currency="INR",
+        executed_at=datetime.now(UTC),
     )
     vr = verifier.verify_payment_attempt(case_id="c1", payment_result=result)
     assert vr.outcome == VerificationOutcome.FAILED
@@ -200,18 +237,21 @@ def test_verifier_marks_failure_as_failed():
 
 
 def test_verifier_idempotency_already_recovered():
+    from datetime import datetime
+
     from simulator.engine.payment_simulator import SimulatedPaymentResult
-    from datetime import datetime, timezone
+
     verifier = RecoveryVerifier()
     result = SimulatedPaymentResult(
-        attempt_id="A1", transaction_id="T1",
+        attempt_id="A1",
+        transaction_id="T1",
         outcome=SimulatedOutcome.SUCCESS,
-        failure_reason=None, amount_paise=499900, currency="INR",
-        executed_at=datetime.now(timezone.utc),
+        failure_reason=None,
+        amount_paise=499900,
+        currency="INR",
+        executed_at=datetime.now(UTC),
     )
-    vr = verifier.verify_payment_attempt(
-        case_id="c1", payment_result=result, case_is_already_recovered=True
-    )
+    vr = verifier.verify_payment_attempt(case_id="c1", payment_result=result, case_is_already_recovered=True)
     assert vr.outcome == VerificationOutcome.ALREADY_RECOVERED
     assert vr.amount_recovered_paise == 0
 

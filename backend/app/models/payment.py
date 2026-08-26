@@ -16,7 +16,9 @@ from app.models.enums import FailureReason, SubscriptionStatus, TransactionStatu
 class PaymentMethod(TimestampedModel):
     __tablename__ = "payment_methods"
 
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
+    )
 
     # Synthetic method data — no real card numbers
     method_type: Mapped[str] = mapped_column(String(50), nullable=False)  # card, upi, netbanking, wallet
@@ -34,8 +36,12 @@ class PaymentMethod(TimestampedModel):
 class Subscription(TimestampedModel):
     __tablename__ = "subscriptions"
 
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True)
-    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("payment_methods.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
+    )
+    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payment_methods.id"), nullable=True
+    )
 
     plan_name: Mapped[str] = mapped_column(String(255), nullable=False)
     plan_interval: Mapped[str] = mapped_column(String(50), nullable=False)  # monthly, annual, weekly
@@ -53,10 +59,18 @@ class Subscription(TimestampedModel):
 class Transaction(TimestampedModel):
     __tablename__ = "transactions"
 
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True)
-    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("payment_methods.id"), nullable=True)
-    subscription_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=True)
-    checkout_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("checkout_sessions.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
+    )
+    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payment_methods.id"), nullable=True
+    )
+    subscription_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=True
+    )
+    checkout_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkout_sessions.id"), nullable=True
+    )
 
     # Idempotency key — prevents duplicate processing
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
@@ -70,7 +84,9 @@ class Transaction(TimestampedModel):
 
     # Simulator metadata
     is_synthetic: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    simulation_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("simulation_runs.id"), nullable=True)
+    simulation_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("simulation_runs.id"), nullable=True
+    )
 
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
 
@@ -84,8 +100,12 @@ class Transaction(TimestampedModel):
 class PaymentFailure(TimestampedModel):
     __tablename__ = "payment_failures"
 
-    transaction_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=False, index=True)
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True)
+    transaction_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=False, index=True
+    )
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
+    )
 
     failure_reason: Mapped[FailureReason] = mapped_column(String(50), nullable=False)
     failure_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -95,7 +115,9 @@ class PaymentFailure(TimestampedModel):
 
     # Processed flag — prevents duplicate case creation (idempotency)
     is_processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    recovery_case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=True)
+    recovery_case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=True
+    )
 
     transaction: Mapped["Transaction"] = relationship("Transaction", back_populates="payment_failures")
 
@@ -103,8 +125,12 @@ class PaymentFailure(TimestampedModel):
 class CheckoutSession(TimestampedModel):
     __tablename__ = "checkout_sessions"
 
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True)
-    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("payment_methods.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id"), nullable=False, index=True
+    )
+    payment_method_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payment_methods.id"), nullable=True
+    )
 
     session_token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     amount_paise: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -118,7 +144,9 @@ class CheckoutSession(TimestampedModel):
     resumed_at: Mapped[str | None] = mapped_column(String(50), nullable=True)
     completed_at: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    recovery_case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=True)
+    recovery_case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recovery_cases.id"), nullable=True
+    )
     is_synthetic: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)

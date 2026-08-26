@@ -68,8 +68,7 @@ class Settings(BaseSettings):
     def reject_live_razorpay_keys(cls, v: str) -> str:
         if (v or "").startswith("rzp_live_"):
             raise ValueError(
-                "Production Razorpay keys (rzp_live_) are forbidden. "
-                "Use rzp_test_ keys or PAYMENT_PROVIDER=simulator."
+                "Production Razorpay keys (rzp_live_) are forbidden. Use rzp_test_ keys or PAYMENT_PROVIDER=simulator."
             )
         return v or ""
 

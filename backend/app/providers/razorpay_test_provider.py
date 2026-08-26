@@ -20,7 +20,13 @@ from __future__ import annotations
 
 import structlog
 
-from app.providers.base import PaymentProvider, PaymentResult, PaymentStatus, ProviderMode, RetryResult
+from app.providers.base import (
+    PaymentProvider,
+    PaymentResult,
+    PaymentStatus,
+    ProviderMode,
+    RetryResult,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -55,6 +61,7 @@ class RazorpayTestProvider(PaymentProvider):
     def _init_client(key_id: str, key_secret: str):
         try:
             import razorpay
+
             return razorpay.Client(auth=(key_id, key_secret))
         except ImportError:
             logger.warning("razorpay_sdk_not_installed", msg="Install razorpay package: pip install razorpay")
@@ -102,19 +109,20 @@ class RazorpayTestProvider(PaymentProvider):
         if not self._client:
             return self._unavailable_retry(idempotency_key)
         try:
-            order = self._client.order.create({
-                "amount": amount_paise,
-                "currency": currency,
-                "receipt": idempotency_key[:40],
-                "notes": {
-                    "case_id": case_id,
-                    "customer_id": customer_id,
-                    "environment": "TEST_MODE",
-                    "original_payment_id": original_payment_id,
-                },
-            })
-            logger.info("razorpay_test_order_created",
-                        order_id=order["id"], amount=amount_paise, case_id=case_id)
+            order = self._client.order.create(
+                {
+                    "amount": amount_paise,
+                    "currency": currency,
+                    "receipt": idempotency_key[:40],
+                    "notes": {
+                        "case_id": case_id,
+                        "customer_id": customer_id,
+                        "environment": "TEST_MODE",
+                        "original_payment_id": original_payment_id,
+                    },
+                }
+            )
+            logger.info("razorpay_test_order_created", order_id=order["id"], amount=amount_paise, case_id=case_id)
             # Note: full payment capture requires frontend integration (Razorpay checkout)
             # For API-only test, order creation demonstrates the integration
             return RetryResult(
@@ -140,28 +148,36 @@ class RazorpayTestProvider(PaymentProvider):
     @staticmethod
     def _map_status(razorpay_status: str) -> PaymentStatus:
         return {
-            "captured":   PaymentStatus.SUCCESS,
+            "captured": PaymentStatus.SUCCESS,
             "authorized": PaymentStatus.PENDING,
-            "created":    PaymentStatus.PENDING,
-            "failed":     PaymentStatus.FAILED,
-            "refunded":   PaymentStatus.CANCELLED,
+            "created": PaymentStatus.PENDING,
+            "failed": PaymentStatus.FAILED,
+            "refunded": PaymentStatus.CANCELLED,
         }.get(razorpay_status, PaymentStatus.FAILED)
 
     @staticmethod
     def _unavailable(payment_id: str) -> PaymentResult:
         return PaymentResult(
-            payment_id=payment_id, status=PaymentStatus.FAILED,
-            amount_paise=0, currency="INR", provider=ProviderMode.RAZORPAY_TEST,
-            failure_reason="PROVIDER_UNAVAILABLE", is_synthetic=False,
+            payment_id=payment_id,
+            status=PaymentStatus.FAILED,
+            amount_paise=0,
+            currency="INR",
+            provider=ProviderMode.RAZORPAY_TEST,
+            failure_reason="PROVIDER_UNAVAILABLE",
+            is_synthetic=False,
         )
 
     @staticmethod
     def _unavailable_retry(idempotency_key: str) -> RetryResult:
         return RetryResult(
-            attempt_id=idempotency_key, payment_id="",
-            status=PaymentStatus.FAILED, amount_paise=0, currency="INR",
+            attempt_id=idempotency_key,
+            payment_id="",
+            status=PaymentStatus.FAILED,
+            amount_paise=0,
+            currency="INR",
             provider=ProviderMode.RAZORPAY_TEST,
-            failure_reason="PROVIDER_UNAVAILABLE", is_synthetic=False,
+            failure_reason="PROVIDER_UNAVAILABLE",
+            is_synthetic=False,
         )
 
 

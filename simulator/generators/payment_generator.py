@@ -9,47 +9,46 @@ from __future__ import annotations
 import random
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from simulator.generators.customer_generator import SyntheticCustomer
-
 
 # ── Failure reason distribution weights ───────────────────────────────────────
 DEFAULT_FAILURE_DISTRIBUTION = {
     "INSUFFICIENT_FUNDS": 0.35,
-    "BANK_DECLINE":       0.20,
-    "EXPIRED_METHOD":     0.15,
-    "GATEWAY_TEMPORARY":  0.15,
-    "AUTH_FAILURE":       0.10,
-    "MANDATE_FAILURE":    0.03,
-    "UNKNOWN":            0.02,
+    "BANK_DECLINE": 0.20,
+    "EXPIRED_METHOD": 0.15,
+    "GATEWAY_TEMPORARY": 0.15,
+    "AUTH_FAILURE": 0.10,
+    "MANDATE_FAILURE": 0.03,
+    "UNKNOWN": 0.02,
 }
 
 # Probability that a failure reason resolves on retry attempt N (0-indexed)
 RETRY_SUCCESS_PROB = {
     "INSUFFICIENT_FUNDS": [0.0, 0.40, 0.60, 0.75],
-    "BANK_DECLINE":       [0.0, 0.25, 0.45, 0.55],
-    "EXPIRED_METHOD":     [0.0, 0.0,  0.0,  0.0],   # needs method update
-    "GATEWAY_TEMPORARY":  [0.0, 0.70, 0.90, 0.95],
-    "AUTH_FAILURE":       [0.0, 0.20, 0.35, 0.45],
-    "MANDATE_FAILURE":    [0.0, 0.30, 0.50, 0.65],
+    "BANK_DECLINE": [0.0, 0.25, 0.45, 0.55],
+    "EXPIRED_METHOD": [0.0, 0.0, 0.0, 0.0],  # needs method update
+    "GATEWAY_TEMPORARY": [0.0, 0.70, 0.90, 0.95],
+    "AUTH_FAILURE": [0.0, 0.20, 0.35, 0.45],
+    "MANDATE_FAILURE": [0.0, 0.30, 0.50, 0.65],
     "SUBSCRIPTION_GRACE": [0.0, 0.40, 0.55, 0.70],
-    "UNKNOWN":            [0.0, 0.10, 0.15, 0.20],
+    "UNKNOWN": [0.0, 0.10, 0.15, 0.20],
 }
 
 # Probability a checkout abandonment recovers after receiving a message
 CHECKOUT_RECOVERY_PROB = {
-    "standard":   0.35,
-    "premium":    0.50,
+    "standard": 0.35,
+    "premium": 0.50,
     "enterprise": 0.65,
-    "at_risk":    0.20,
+    "at_risk": 0.20,
 }
 
 
 @dataclass
 class PaymentEvent:
     event_id: str
-    event_type: str          # FAILED_PAYMENT | FAILED_SUBSCRIPTION | CHECKOUT_ABANDONED
+    event_type: str  # FAILED_PAYMENT | FAILED_SUBSCRIPTION | CHECKOUT_ABANDONED
     customer_id: str
     customer: SyntheticCustomer
     amount_paise: int
@@ -81,7 +80,7 @@ class PaymentEventGenerator:
         simulation_run_id: str | None = None,
         base_time: datetime | None = None,
     ) -> list[PaymentEvent]:
-        base_time = base_time or datetime.now(timezone.utc) - timedelta(days=7)
+        base_time = base_time or datetime.now(UTC) - timedelta(days=7)
         events: list[PaymentEvent] = []
 
         for i in range(num_events):
@@ -99,7 +98,7 @@ class PaymentEventGenerator:
             )
 
             event = PaymentEvent(
-                event_id=f"EVT-{i+1:06d}",
+                event_id=f"EVT-{i + 1:06d}",
                 event_type=event_type,
                 customer_id=customer.customer_id,
                 customer=customer,
@@ -108,8 +107,12 @@ class PaymentEventGenerator:
                 failure_reason=failure_reason,
                 idempotency_key=str(uuid.uuid4()),
                 occurred_at=occurred_at,
-                subscription_id=f"SUB-{self._rng.randint(1, 1000):05d}" if event_type == "FAILED_SUBSCRIPTION" else None,
-                checkout_session_id=f"CHK-{self._rng.randint(1, 1000):05d}" if event_type == "CHECKOUT_ABANDONED" else None,
+                subscription_id=f"SUB-{self._rng.randint(1, 1000):05d}"
+                if event_type == "FAILED_SUBSCRIPTION"
+                else None,
+                checkout_session_id=f"CHK-{self._rng.randint(1, 1000):05d}"
+                if event_type == "CHECKOUT_ABANDONED"
+                else None,
                 simulation_run_id=simulation_run_id,
                 metadata={"synthetic": True, "segment": customer.segment},
             )
@@ -130,10 +133,10 @@ class PaymentEventGenerator:
     def _pick_amount(self, customer: SyntheticCustomer, event_type: str) -> int:
         """Returns amount in paise. Skewed by customer segment."""
         ranges = {
-            "standard":   (50_000,  500_000),    # ₹500 – ₹5,000
-            "premium":    (200_000, 2_000_000),  # ₹2,000 – ₹20,000
+            "standard": (50_000, 500_000),  # ₹500 – ₹5,000
+            "premium": (200_000, 2_000_000),  # ₹2,000 – ₹20,000
             "enterprise": (500_000, 5_000_000),  # ₹5,000 – ₹50,000
-            "at_risk":    (20_000,  200_000),    # ₹200 – ₹2,000
+            "at_risk": (20_000, 200_000),  # ₹200 – ₹2,000
         }
         lo, hi = ranges.get(customer.segment, (50_000, 500_000))
         return self._rng.randint(lo, hi)

@@ -6,12 +6,9 @@ Two mandatory e2e checks from §23 of the spec:
   2. AI proposes policy-violating action → DENIED → not executed → audit recorded
 """
 
-import pytest
-
 from agents.graph.recovery_graph import RecoveryAgent
 from agents.schemas.agent_schemas import make_initial_state
 from policies.schemas.policy_schema import PolicyConfig
-from simulator.engine.recovery_verifier import VerificationOutcome
 
 
 def make_policy(**kwargs) -> PolicyConfig:
@@ -24,21 +21,22 @@ def run_case(state, seed: int = 100) -> dict:
 
 
 def s(**kw) -> dict:
-    defaults = dict(
-        agent_run_id="run-e2e",
-        event_type="FAILED_PAYMENT",
-        failure_reason="GATEWAY_TEMPORARY",
-        amount_paise=199900,
-        currency="INR",
-        customer_id="cust-e2e",
-        customer_segment="premium",
-        llm_provider="mock",
-    )
+    defaults = {
+        "agent_run_id": "run-e2e",
+        "event_type": "FAILED_PAYMENT",
+        "failure_reason": "GATEWAY_TEMPORARY",
+        "amount_paise": 199900,
+        "currency": "INR",
+        "customer_id": "cust-e2e",
+        "customer_segment": "premium",
+        "llm_provider": "mock",
+    }
     defaults.update(kw)
     return make_initial_state(**defaults)
 
 
 # ── E2E Check 1: Full happy path ───────────────────────────────────────────────
+
 
 def test_e2e_gateway_failure_recovers():
     """
@@ -79,6 +77,7 @@ def test_e2e_recovery_stops_agent():
 
 # ── E2E Check 2: Policy blocks unauthorized action ────────────────────────────
 
+
 def test_e2e_4th_retry_policy_denied():
     """
     retry_count=3 → Policy MUST deny → Executor MUST NOT execute.
@@ -112,13 +111,19 @@ def test_e2e_opted_out_no_action():
 
 # ── Checkout abandonment E2E ───────────────────────────────────────────────────
 
+
 def test_e2e_checkout_abandonment_pipeline():
     state = make_initial_state(
-        case_id="e2e-checkout", agent_run_id="run-checkout",
-        event_type="CHECKOUT_ABANDONMENT", failure_reason="CHECKOUT_ABANDONED",
-        amount_paise=349900, currency="INR",
-        customer_id="cust-checkout", customer_segment="premium",
-        checkout_timeout_elapsed=True, llm_provider="mock",
+        case_id="e2e-checkout",
+        agent_run_id="run-checkout",
+        event_type="CHECKOUT_ABANDONMENT",
+        failure_reason="CHECKOUT_ABANDONED",
+        amount_paise=349900,
+        currency="INR",
+        customer_id="cust-checkout",
+        customer_segment="premium",
+        checkout_timeout_elapsed=True,
+        llm_provider="mock",
     )
     result = run_case(state, seed=42)
     diag = result.get("case_diagnosis")
@@ -130,15 +135,18 @@ def test_e2e_checkout_abandonment_pipeline():
 
 # ── High-value always escalates ───────────────────────────────────────────────
 
+
 def test_e2e_high_value_always_escalated():
-    state = s(case_id="e2e-highval", failure_reason="BANK_DECLINE",
-              amount_paise=6_000_000, customer_segment="enterprise")
+    state = s(
+        case_id="e2e-highval", failure_reason="BANK_DECLINE", amount_paise=6_000_000, customer_segment="enterprise"
+    )
     result = run_case(state)
     assert not result.get("case_is_recovered")
     assert result.get("escalation_reason") is not None
 
 
 # ── Unknown failure never fabricates ─────────────────────────────────────────
+
 
 def test_e2e_unknown_failure_escalates_with_low_confidence():
     state = s(case_id="e2e-unknown", failure_reason="UNKNOWN", amount_paise=299900)

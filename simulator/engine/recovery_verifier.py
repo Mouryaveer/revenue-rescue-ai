@@ -9,13 +9,13 @@ Revenue recovered = verified by simulator/DB state, not LLM claim.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 
 from simulator.engine.payment_simulator import SimulatedOutcome, SimulatedPaymentResult
 
 
-class VerificationOutcome(str, Enum):
+class VerificationOutcome(StrEnum):
     RECOVERED = "RECOVERED"
     FAILED = "FAILED"
     PENDING = "PENDING"
@@ -50,7 +50,7 @@ class RecoveryVerifier:
         Verify a payment attempt result.
         Returns VerificationResult with authoritative outcome.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if case_is_already_recovered:
             return VerificationResult(
@@ -95,7 +95,7 @@ class RecoveryVerifier:
         Verify checkout recovery outcome.
         payment_result=None means customer did not resume.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if case_is_already_recovered:
             return VerificationResult(

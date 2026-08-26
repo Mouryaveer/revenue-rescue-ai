@@ -32,7 +32,7 @@ from agents.nodes.nodes import (
     node_strategy,
     node_verification,
 )
-from agents.schemas.agent_schemas import AgentState, make_initial_state
+from agents.schemas.agent_schemas import AgentState
 from policies.engine.policy_engine import PolicyEngine
 from policies.schemas.policy_schema import PolicyConfig
 from simulator.engine.payment_simulator import PaymentSimulator
@@ -45,6 +45,7 @@ logger = structlog.get_logger(__name__)
 
 
 # ── Routing functions (deterministic, use dict access) ────────────────────────
+
 
 def route_after_risk_detection(state: AgentState) -> str:
     if state.get("case_is_stopped") or state.get("error"):
@@ -89,6 +90,7 @@ def increment_replan(state: AgentState) -> dict:
 
 # ── Graph builder ──────────────────────────────────────────────────────────────
 
+
 def build_recovery_graph(
     llm: LLMProvider,
     policy_engine: PolicyEngine,
@@ -99,24 +101,24 @@ def build_recovery_graph(
 
     graph = StateGraph(AgentState)
 
-    diag_node   = partial(node_diagnosis, llm=llm)
-    strat_node  = partial(node_strategy, llm=llm)
+    diag_node = partial(node_diagnosis, llm=llm)
+    strat_node = partial(node_strategy, llm=llm)
     policy_node = partial(node_policy_check, policy_engine=policy_engine)
-    exec_node   = partial(node_action_execution, simulator=simulator)
+    exec_node = partial(node_action_execution, simulator=simulator)
     verify_node = partial(node_verification, verifier=verifier)
 
-    graph.add_node("risk_detection",   node_risk_detection)
-    graph.add_node("context_builder",  node_context_builder)
-    graph.add_node("diagnosis",        diag_node)
-    graph.add_node("strategy",         strat_node)
-    graph.add_node("policy_check",     policy_node)
+    graph.add_node("risk_detection", node_risk_detection)
+    graph.add_node("context_builder", node_context_builder)
+    graph.add_node("diagnosis", diag_node)
+    graph.add_node("strategy", strat_node)
+    graph.add_node("policy_check", policy_node)
     graph.add_node("action_execution", exec_node)
-    graph.add_node("observation",      node_observation)
-    graph.add_node("verification",     verify_node)
-    graph.add_node("escalation",       node_escalation)
-    graph.add_node("completion",       node_completion)
+    graph.add_node("observation", node_observation)
+    graph.add_node("verification", verify_node)
+    graph.add_node("escalation", node_escalation)
+    graph.add_node("completion", node_completion)
     # Replan node: increments counter then routes back to strategy
-    graph.add_node("replan",           increment_replan)
+    graph.add_node("replan", increment_replan)
 
     graph.set_entry_point("risk_detection")
 
@@ -128,7 +130,7 @@ def build_recovery_graph(
     graph.add_edge("action_execution", "observation")
     graph.add_edge("observation", "verification")
     graph.add_conditional_edges("verification", route_after_verification)
-    graph.add_edge("replan", "strategy")   # replan → strategy (counter already incremented)
+    graph.add_edge("replan", "strategy")  # replan → strategy (counter already incremented)
     graph.add_edge("escalation", "completion")
     graph.add_edge("completion", END)
 
@@ -136,6 +138,7 @@ def build_recovery_graph(
 
 
 # ── High-level runner ─────────────────────────────────────────────────────────
+
 
 class RecoveryAgent:
     def __init__(
@@ -150,13 +153,11 @@ class RecoveryAgent:
         self._policy_engine = PolicyEngine(policy)
         self._simulator = PaymentSimulator(seed=simulator_seed)
         self._verifier = RecoveryVerifier()
-        self._graph = build_recovery_graph(
-            self._llm, self._policy_engine, self._simulator, self._verifier
-        )
+        self._graph = build_recovery_graph(self._llm, self._policy_engine, self._simulator, self._verifier)
 
     def run(self, initial_state: AgentState) -> AgentState:
-        logger.info("agent_run_start",
-                    case_id=initial_state.get("case_id"),
-                    agent_run_id=initial_state.get("agent_run_id"))
+        logger.info(
+            "agent_run_start", case_id=initial_state.get("case_id"), agent_run_id=initial_state.get("agent_run_id")
+        )
         result = self._graph.invoke(initial_state)
         return result  # already a dict (TypedDict), no need to convert

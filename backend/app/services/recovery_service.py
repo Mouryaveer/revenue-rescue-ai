@@ -5,14 +5,11 @@ Wires: Event → RecoveryCase → AgentRun → AuditTrail → DB.
 
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime, timezone
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from agents.graph.recovery_graph import RecoveryAgent
 from app.core.config import settings
@@ -39,15 +36,11 @@ class RecoveryService:
         self._audit = AuditService(db)
 
     async def get_case_by_idempotency_key(self, key: str) -> RecoveryCase | None:
-        result = await self._db.execute(
-            select(RecoveryCase).where(RecoveryCase.source_event_key == key)
-        )
+        result = await self._db.execute(select(RecoveryCase).where(RecoveryCase.source_event_key == key))
         return result.scalar_one_or_none()
 
     async def get_case_by_id(self, case_id: str) -> RecoveryCase | None:
-        result = await self._db.execute(
-            select(RecoveryCase).where(RecoveryCase.id == uuid.UUID(case_id))
-        )
+        result = await self._db.execute(select(RecoveryCase).where(RecoveryCase.id == uuid.UUID(case_id)))
         return result.scalar_one_or_none()
 
     async def list_cases(
@@ -72,6 +65,7 @@ class RecoveryService:
     async def _get_or_create_customer_id(self, customer_id_str: str) -> uuid.UUID:
         """Resolve customer_id string to a UUID, creating a synthetic customer stub if needed."""
         import hashlib
+
         from app.models.customer import Customer
 
         # Derive a deterministic UUID from the customer_id string
@@ -81,9 +75,7 @@ class RecoveryService:
             cust_uuid = uuid.UUID(hashlib.md5(customer_id_str.encode()).hexdigest())
 
         # Check if customer exists
-        result = await self._db.execute(
-            select(Customer).where(Customer.id == cust_uuid)
-        )
+        result = await self._db.execute(select(Customer).where(Customer.id == cust_uuid))
         if result.scalar_one_or_none():
             return cust_uuid
 
@@ -92,9 +84,7 @@ class RecoveryService:
         email_hash = hashlib.sha256(email.encode()).hexdigest()
 
         # Avoid duplicate on email_hash
-        result2 = await self._db.execute(
-            select(Customer).where(Customer.email_hash == email_hash)
-        )
+        result2 = await self._db.execute(select(Customer).where(Customer.email_hash == email_hash))
         existing = result2.scalar_one_or_none()
         if existing:
             return existing.id
@@ -197,7 +187,7 @@ class RecoveryService:
         policy_svc = PolicyService(self._db)
         policy_config = await policy_svc.get_active_policy_config()
 
-        agent_run_id = str(uuid.uuid4())
+        str(uuid.uuid4())
 
         # Create agent run record
         agent_run = AgentRun(
@@ -218,6 +208,7 @@ class RecoveryService:
 
         # Build initial state using make_initial_state helper
         from agents.schemas.agent_schemas import make_initial_state
+
         initial_state = make_initial_state(
             case_id=case_id,
             agent_run_id=str(agent_run.id),
@@ -255,9 +246,7 @@ class RecoveryService:
                 reason=str(e),
             )
 
-    async def _apply_agent_result(
-        self, case: RecoveryCase, agent_run: AgentRun, state: dict
-    ) -> None:
+    async def _apply_agent_result(self, case: RecoveryCase, agent_run: AgentRun, state: dict) -> None:
         """Write agent run results back to DB and audit trail. State is a dict (TypedDict)."""
         agent_run.run_status = "COMPLETED"
         agent_run.node_trace = state.get("node_trace", [])
@@ -346,6 +335,7 @@ class RecoveryService:
 
     async def get_audit_trail(self, case_id: str):
         from app.models.audit import AuditEvent
+
         result = await self._db.execute(
             select(AuditEvent)
             .where(AuditEvent.recovery_case_id == uuid.UUID(case_id))
@@ -357,7 +347,7 @@ class RecoveryService:
         case = await self.get_case_by_id(case_id)
         if not case:
             return None
-        audit = await self.get_audit_trail(case_id)
+        await self.get_audit_trail(case_id)
         return RecoveryCaseDetail(
             id=str(case.id),
             scenario=case.scenario,

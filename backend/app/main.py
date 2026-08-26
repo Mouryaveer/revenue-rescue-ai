@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.core.database import engine
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIDMiddleware
 

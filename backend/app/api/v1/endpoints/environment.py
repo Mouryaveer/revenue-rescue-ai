@@ -4,6 +4,7 @@ Used to show RAZORPAY TEST MODE / SIMULATION MODE badge in the dashboard.
 """
 
 from fastapi import APIRouter
+
 from app.core.config import settings
 
 router = APIRouter()
@@ -30,8 +31,8 @@ async def get_environment() -> dict:
         "payment_label": "RAZORPAY TEST MODE" if is_razorpay_test else "SIMULATION MODE",
         "payment_description": (
             "Live Razorpay test environment — no real money"
-            if is_razorpay_test else
-            "Deterministic synthetic simulator"
+            if is_razorpay_test
+            else "Deterministic synthetic simulator"
         ),
         "llm_mode": llm_mode,
         "llm_label": f"AI MODE — {settings.OPENAI_MODEL}" if llm_mode == "AI" else "FALLBACK MODE — Deterministic",
