@@ -39,16 +39,47 @@ export default function DemoPage() {
   const qc = useQueryClient();
   const [results, setResults] = useState<Record<string, RunResult>>({});
   const [resetting, setResetting] = useState(false);
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
 
   const { data: scenarios, isLoading } = useQuery<DemoScenario[]>({
     queryKey: ["demo-scenarios"],
     queryFn: () => apiFetch<DemoScenario[]>("/demo/scenarios"),
   });
 
-  const { mutate: runScenario, isPending } = useMutation({
+  const pollCaseUntilResolved = async (caseId: string, scenarioId: string, scenario: DemoScenario) => {
+    const maxWait = 20; // seconds
+    const interval = 1000; // 1s poll
+    for (let i = 0; i < maxWait; i++) {
+      await new Promise(r => setTimeout(r, interval));
+      try {
+        const c = await apiFetch<{ status: string; is_recovered: boolean; is_stopped: boolean }>(`/recovery-cases/${caseId}`);
+        if (c.status !== "DETECTED" && c.status !== "DIAGNOSING") {
+          setResults(prev => ({
+            ...prev,
+            [scenarioId]: { case_id: caseId, scenario, status: c.status, message: `Resolved: ${c.status}` },
+          }));
+          setRunningIds(prev => { const s = new Set(prev); s.delete(scenarioId); return s; });
+          return;
+        }
+      } catch { /* keep polling */ }
+    }
+    // Timeout — show whatever we have
+    setRunningIds(prev => { const s = new Set(prev); s.delete(scenarioId); return s; });
+  };
+
+  const { mutate: runScenario } = useMutation({
     mutationFn: (id: string) => apiFetch<RunResult>(`/demo/run/${id}`, { method: "POST" }),
+    onMutate: (id) => {
+      setRunningIds(prev => new Set(prev).add(id));
+    },
     onSuccess: (data) => {
+      // Show initial RUNNING state immediately
       setResults(prev => ({ ...prev, [data.scenario.id]: data }));
+      // Poll until the agent actually finishes (5–10s)
+      pollCaseUntilResolved(data.case_id, data.scenario.id, data.scenario);
+    },
+    onError: (_, id) => {
+      setRunningIds(prev => { const s = new Set(prev); s.delete(id); return s; });
     },
   });
 
@@ -98,7 +129,7 @@ export default function DemoPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {(scenarios ?? []).map((s) => {
             const result = results[s.id];
-            const isRunning = result?.status === "RUNNING";
+            const isRunning = runningIds.has(s.id);
             return (
               <div key={s.id} className={clsx(
                 "card-surface p-5 transition-all hover:shadow-card-hover",
@@ -133,7 +164,7 @@ export default function DemoPage() {
                   </div>
                   <button
                     onClick={() => runScenario(s.id)}
-                    disabled={isPending || isRunning}
+                    disabled={isRunning}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-primary text-white text-xs font-semibold hover:bg-brand-hover disabled:opacity-50 transition-colors"
                   >
                     {isRunning
@@ -148,7 +179,8 @@ export default function DemoPage() {
                 {result && !isRunning && (
                   <div className="mt-3 pt-3 border-t border-border">
                     <p className="text-xs text-text-secondary">
-                      Case: <span className="font-mono">{result.case_id.slice(0, 12)}…</span>
+                      Status: <span className={clsx("font-semibold", result.status === "RECOVERED" ? "text-success" : result.status === "ESCALATED" ? "text-warning" : "text-text-secondary")}>{result.status}</span>
+                      {" · "}Case: <span className="font-mono">{result.case_id.slice(0, 12)}…</span>
                     </p>
                     <a href={`/cases/${result.case_id}`}
                       className="text-xs text-brand-primary hover:underline font-medium">
