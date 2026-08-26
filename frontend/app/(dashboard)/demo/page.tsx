@@ -61,7 +61,7 @@ export default function DemoPage() {
           setRunningIds(prev => { const s = new Set(prev); s.delete(scenarioId); return s; });
           return;
         }
-      } catch { /* keep polling */ }
+      } catch (_err) { /* keep polling */ }
     }
     // Timeout — show whatever we have
     setRunningIds(prev => { const s = new Set(prev); s.delete(scenarioId); return s; });
