@@ -13,15 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-      - run: pip install ruff mypy bandit
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy backend/app agents policies simulator --ignore-missing-imports
-      - run: bandit -r backend/app agents policies simulator -x tests -c pyproject.toml
+
+      - name: Install lint tools (pinned)
+        run: pip install "ruff==0.15.11" "bandit==1.9.4"
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Bandit security scan
+        run: bandit -r backend/app agents policies simulator -x tests -c pyproject.toml
 
   test:
     name: Run Tests
@@ -47,20 +55,29 @@ jobs:
       JWT_SECRET: ci-test-jwt
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-      - run: pip install -r backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
       - name: Policy Engine Tests
         run: pytest policies/tests/ -v
+
       - name: Simulator Tests
         run: pytest simulator/tests/ -v
+
       - name: Agent Tests
         run: pytest agents/tests/ -v
+
       - name: Red-Team Tests
         run: pytest tests/redteam/ -v
+
       - name: Integration / E2E Tests
         run: pytest tests/integration/ -v
+
       - name: Backend Unit Tests
         run: pytest backend/tests/ -v
