@@ -132,26 +132,35 @@ async def run_demo_scenario(
 
     ikey = f"demo-{scenario_id}-{uuid.uuid4().hex[:8]}"
 
+    # Scenarios that require an opted-out customer
+    opted_out_scenarios = {"demo-006"}
+    # Unique customer id per scenario run (append uuid to avoid idempotency conflicts)
+    cust_id = f"demo-cust-{scenario_id}-{uuid.uuid4().hex[:8]}"
+
+    service = RecoveryService(db)
+
+    # For opted-out scenarios, ensure the customer is created with opted_out_communication=True
+    if scenario_id in opted_out_scenarios:
+        await service.create_opted_out_customer(cust_id)
+
     if scenario["scenario"] == "CHECKOUT_ABANDONMENT":
         event = CheckoutAbandonedEvent(
             idempotency_key=ikey,
-            customer_id=f"demo-cust-{scenario_id}",
-            checkout_session_id=f"demo-sess-{scenario_id}",
+            customer_id=cust_id,
+            checkout_session_id=f"demo-sess-{scenario_id}-{uuid.uuid4().hex[:8]}",
             amount_paise=scenario["amount_paise"],
             currency="INR",
             checkout_timeout_minutes=0,  # already elapsed in demo
         )
-        service = RecoveryService(db)
         case = await service.create_case_from_checkout_abandonment(event)
     else:
         event = PaymentFailedEvent(
             idempotency_key=ikey,
-            customer_id=f"demo-cust-{scenario_id}",
+            customer_id=cust_id,
             amount_paise=scenario["amount_paise"],
             currency="INR",
             failure_reason=scenario["failure_reason"],
         )
-        service = RecoveryService(db)
         case = await service.create_case_from_payment_failure(event)
 
     from app.api.v1.endpoints.events import _run_agent_background

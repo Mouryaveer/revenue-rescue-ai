@@ -137,12 +137,19 @@ class SimulationService:
                         api_key=settings.OPENAI_API_KEY,
                         simulator_seed=seed + i,
                     )
-                    final = agent.run(state)
+                    try:
+                        final = agent.run(state)
+                    except Exception as agent_err:
+                        logger.warning("sim_agent_event_failed", event_idx=i, error=str(agent_err))
+                        recovered = False
+                        continue
                     recovered = final.get("case_is_recovered", False)
                     if final.get("escalation_reason"):
                         escalated_cases += 1
+                    # A policy VIOLATION is only when an action executes despite DENIED — never happens by design
+                    # DENIED is correct policy behavior, not a violation
                     decision = (final.get("policy_result") or {}).get("decision")
-                    if decision == "DENIED":
+                    if decision == "DENIED" and recovered:
                         policy_violations += 1
 
                 if recovered:

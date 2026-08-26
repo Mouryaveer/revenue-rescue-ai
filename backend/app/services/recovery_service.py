@@ -170,6 +170,54 @@ class RecoveryService:
         )
         return case
 
+    async def create_opted_out_customer(self, customer_id_str: str) -> None:
+        """Create a synthetic customer with opted_out_communication=True. Used for demo scenarios."""
+        import hashlib
+
+        from app.models.customer import Customer
+
+        try:
+            cust_uuid = uuid.UUID(customer_id_str)
+        except (ValueError, AttributeError):
+            cust_uuid = uuid.UUID(hashlib.md5(customer_id_str.encode(), usedforsecurity=False).hexdigest())
+
+        result = await self._db.execute(select(Customer).where(Customer.id == cust_uuid))
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.opted_out_communication = True
+            existing.opted_out_email = True
+            existing.opted_out_sms = True
+            await self._db.flush()
+            return
+
+        email = f"optedout-{cust_uuid.hex[:8]}@synthetic.invalid"
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+
+        customer = Customer(
+            id=cust_uuid,
+            name=f"Opted-Out Customer {cust_uuid.hex[:8]}",
+            email_hash=email_hash,
+            email_display=email,
+            segment="standard",
+            country="IN",
+            is_synthetic=True,
+            opted_out_communication=True,
+            opted_out_email=True,
+            opted_out_sms=True,
+        )
+        self._db.add(customer)
+        await self._db.flush()
+
+    async def _get_customer_flags(self, customer_id: uuid.UUID) -> tuple[bool, bool]:
+        """Look up opted_out_communication and is_suspended for a customer. Returns (opted_out, suspended)."""
+        from app.models.customer import Customer
+
+        result = await self._db.execute(select(Customer).where(Customer.id == customer_id))
+        customer = result.scalar_one_or_none()
+        if customer is None:
+            return False, False
+        return customer.opted_out_communication, customer.is_suspended
+
     async def run_recovery_agent(self, case_id: str) -> None:
         """
         Execute the recovery agent for a case.
@@ -187,7 +235,8 @@ class RecoveryService:
         policy_svc = PolicyService(self._db)
         policy_config = await policy_svc.get_active_policy_config()
 
-        str(uuid.uuid4())
+        # Look up real customer flags (opt-out, suspension) from DB
+        customer_opted_out, customer_suspended = await self._get_customer_flags(case.customer_id)
 
         # Create agent run record
         agent_run = AgentRun(
@@ -220,6 +269,8 @@ class RecoveryService:
             retry_count=case.retry_count,
             communication_count=case.communication_count,
             case_is_recovered=case.is_recovered,
+            customer_opted_out=customer_opted_out,
+            customer_suspended=customer_suspended,
             llm_provider=settings.LLM_PROVIDER,
         )
 

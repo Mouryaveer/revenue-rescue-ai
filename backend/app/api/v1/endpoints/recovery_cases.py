@@ -36,6 +36,12 @@ async def list_cases(
 
 @router.get("/{case_id}", response_model=RecoveryCaseDetail)
 async def get_case(case_id: str, db: AsyncSession = Depends(get_db)) -> RecoveryCaseDetail:
+    import uuid as _uuid
+
+    try:
+        _uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=422, detail="Invalid case_id: must be a valid UUID")
     service = RecoveryService(db)
     case = await service.get_case_with_details(case_id)
     if not case:

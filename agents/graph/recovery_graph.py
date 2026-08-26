@@ -159,5 +159,7 @@ class RecoveryAgent:
         logger.info(
             "agent_run_start", case_id=initial_state.get("case_id"), agent_run_id=initial_state.get("agent_run_id")
         )
-        result = self._graph.invoke(initial_state)
+        # recursion_limit covers the full pipeline including replans:
+        # base path (8 nodes) + up to 3 replans × 6 nodes each = ~26 + buffer
+        result = self._graph.invoke(initial_state, config={"recursion_limit": 50})
         return result  # already a dict (TypedDict), no need to convert

@@ -19,9 +19,24 @@ class MetricsService:
         self._db = db
 
     async def compute_overview(self, simulation_run_id: str | None = None) -> MetricsOverview:
+        from app.models.simulation import SimulationRun
+
         q = select(RecoveryCase)
         if simulation_run_id:
-            q = q.where(RecoveryCase.simulation_run_id == uuid.UUID(simulation_run_id))
+            # simulation_run_id may be either the short SIM-XXXXXXXX label or a full UUID
+            resolved_uuid: uuid.UUID | None = None
+            try:
+                resolved_uuid = uuid.UUID(simulation_run_id)
+            except (ValueError, AttributeError):
+                # It's a short SIM-XXXXXXXX id — look up the DB UUID
+                sim_result = await self._db.execute(
+                    select(SimulationRun).where(SimulationRun.simulation_id == simulation_run_id)
+                )
+                sim = sim_result.scalar_one_or_none()
+                if sim:
+                    resolved_uuid = sim.id
+            if resolved_uuid:
+                q = q.where(RecoveryCase.simulation_run_id == resolved_uuid)
 
         result = await self._db.execute(q)
         cases = result.scalars().all()
@@ -37,9 +52,9 @@ class MetricsService:
 
         recovery_rate = (revenue_recovered / revenue_at_risk * 100) if revenue_at_risk > 0 else 0.0
 
-        # Policy violations: cases where policy_decision == DENIED but execution still happened
-        # (should always be 0 by design — we track this explicitly)
-        policy_violations = 0  # computed from audit events in production
+        # Policy violations: count DENIED decisions where case still ran (should always be 0 by design)
+        # Computed from actual policy_decision field on cases
+        policy_violations = sum(1 for c in cases if c.policy_decision == "DENIED" and c.is_recovered)
 
         # By scenario
         scenarios = {}

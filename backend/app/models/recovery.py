@@ -69,7 +69,6 @@ class RecoveryCase(TimestampedModel):
     agent_runs: Mapped[list["AgentRun"]] = relationship("AgentRun", back_populates="recovery_case")
     audit_events: Mapped[list["AuditEvent"]] = relationship("AuditEvent", back_populates="recovery_case")
     escalations: Mapped[list["Escalation"]] = relationship("Escalation", back_populates="recovery_case")
-    escalations: Mapped[list["Escalation"]] = relationship("Escalation", back_populates="recovery_case")
 
 
 class RecoveryAction(TimestampedModel):
