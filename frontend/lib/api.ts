@@ -134,6 +134,7 @@ export interface RecoveryCaseSummary {
   customer_id: string;
   is_recovered: boolean;
   is_stopped: boolean;
+  policy_decision: string | null;
   created_at: string;
   updated_at: string;
 }

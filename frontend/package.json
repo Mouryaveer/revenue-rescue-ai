@@ -11,34 +11,35 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.6.0",
+    "@tanstack/react-query": "^5.45.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "framer-motion": "^11.2.11",
+    "lucide-react": "^0.395.0",
     "next": "14.2.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@tanstack/react-query": "^5.45.1",
-    "recharts": "^2.12.7",
-    "lucide-react": "^0.395.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.3.0",
-    "zod": "^3.23.8",
     "react-hook-form": "^7.52.1",
-    "@hookform/resolvers": "^3.6.0",
-    "framer-motion": "^11.2.11",
-    "date-fns": "^3.6.0"
+    "recharts": "^2.12.7",
+    "tailwind-merge": "^2.3.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.5.2",
+    "@playwright/test": "^1.45.0",
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
     "@types/node": "^20.14.8",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "tailwindcss": "^3.4.4",
+    "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.4",
-    "vitest": "^1.6.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "@testing-library/react": "^16.0.0",
-    "@testing-library/jest-dom": "^6.4.6",
-    "@playwright/test": "^1.45.0"
+    "jsdom": "^29.1.1",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.2",
+    "vitest": "^1.6.0"
   }
 }
