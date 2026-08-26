@@ -1,0 +1,8 @@
+# Old working copy — not needed, real project is in revenue-rescue-ai/
+revenue-rescue-ai-fixed/
+
+# Kiro IDE files
+.kiro/
+
+# Misc
+*.md
