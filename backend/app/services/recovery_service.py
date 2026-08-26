@@ -284,6 +284,16 @@ class RecoveryService:
         if case.is_recovered and verification_result:
             case.amount_recovered_paise = verification_result.get("amount_recovered_paise", 0)
             case.status = RecoveryCaseStatus.RECOVERED
+            # transaction_id from simulator is "TXN-XXXX" format (not UUID) — pass as None
+            # to avoid DB cast error; the transaction ref is stored in verification_result
+            raw_txn_id = verification_result.get("transaction_id")
+            safe_txn_id: str | None = None
+            if raw_txn_id:
+                try:
+                    uuid.UUID(str(raw_txn_id))
+                    safe_txn_id = str(raw_txn_id)
+                except (ValueError, AttributeError):
+                    safe_txn_id = None  # non-UUID simulator TXN ref — skip column cast
             await self._audit.record(
                 event_type=AuditEventType.REVENUE_RECOVERED,
                 actor=ActorType.RECOVERY_VERIFIER,
@@ -291,7 +301,7 @@ class RecoveryService:
                 amount_paise=case.amount_recovered_paise,
                 result="SUCCESS",
                 reason=verification_result.get("reason"),
-                transaction_id=verification_result.get("transaction_id"),
+                transaction_id=safe_txn_id,
             )
         elif state.get("escalation_reason"):
             case.status = RecoveryCaseStatus.ESCALATED
