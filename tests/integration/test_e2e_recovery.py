@@ -10,6 +10,7 @@ import pytest
 
 from agents.graph.recovery_graph import RecoveryAgent
 from agents.schemas.agent_schemas import make_initial_state
+from app.providers.simulator_provider import SimulatorPaymentProvider
 from policies.schemas.policy_schema import PolicyConfig
 from simulator.engine.recovery_verifier import VerificationOutcome
 
@@ -19,7 +20,11 @@ def make_policy(**kwargs) -> PolicyConfig:
 
 
 def run_case(state, seed: int = 100) -> dict:
-    agent = RecoveryAgent(policy=make_policy(), llm_provider="mock", simulator_seed=seed)
+    agent = RecoveryAgent(
+        policy=make_policy(),
+        llm_provider="mock",
+        payment_provider=SimulatorPaymentProvider(seed=seed)
+    )
     return agent.run(state)
 
 

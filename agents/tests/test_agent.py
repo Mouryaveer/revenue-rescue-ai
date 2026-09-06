@@ -8,6 +8,7 @@ import pytest
 
 from agents.graph.recovery_graph import RecoveryAgent
 from agents.schemas.agent_schemas import make_initial_state
+from app.providers.simulator_provider import SimulatorPaymentProvider
 from policies.schemas.policy_schema import PolicyConfig
 
 
@@ -33,7 +34,11 @@ def make_state(**overrides):
 
 
 def make_agent(seed: int = 42) -> RecoveryAgent:
-    return RecoveryAgent(policy=default_policy(), llm_provider="mock", simulator_seed=seed)
+    return RecoveryAgent(
+        policy=default_policy(),
+        llm_provider="mock",
+        payment_provider=SimulatorPaymentProvider(seed=seed)
+    )
 
 
 # ── Basic completion ───────────────────────────────────────────────────────────

@@ -41,6 +41,15 @@ class PaymentResult:
 
 
 @dataclass
+class OrderResult:
+    order_id: str
+    amount_paise: int
+    currency: str
+    provider: ProviderMode
+    is_synthetic: bool = True
+
+
+@dataclass
 class RetryResult:
     attempt_id: str
     payment_id: str
@@ -66,6 +75,18 @@ class PaymentProvider(ABC):
     @abstractmethod
     def get_payment(self, payment_id: str) -> PaymentResult:
         """Fetch current authoritative payment status."""
+
+    @abstractmethod
+    def create_order(
+        self,
+        *,
+        amount_paise: int,
+        currency: str = "INR",
+        case_id: str,
+        customer_id: str,
+        notes: dict | None = None,
+    ) -> OrderResult:
+        """Create a payment order for a recovery case."""
 
     @abstractmethod
     def retry_payment(

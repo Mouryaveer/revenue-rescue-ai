@@ -10,6 +10,7 @@ from app.models.payment import CheckoutSession, PaymentFailure, PaymentMethod, S
 from app.models.policy import Policy
 from app.models.recovery import AgentDecision, AgentRun, Escalation, RecoveryAction, RecoveryCase
 from app.models.simulation import SimulationRun
+from app.models.webhook import ProviderWebhook
 from app.models.user import User
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "Policy",
     "SimulationRun",
     "User",
+    "ProviderWebhook",
 ]

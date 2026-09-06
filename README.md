@@ -14,11 +14,15 @@ RevenueRescue AI is a bounded autonomous revenue recovery agent. It:
 2. **Diagnoses** the failure using LLM reasoning (or deterministic fallback — no API key required)
 3. **Proposes** a context-aware recovery strategy
 4. **Enforces** merchant-defined policy before any action executes (deterministic, no LLM involvement)
-5. **Executes** recovery actions through a simulated payment/communication layer
-6. **Verifies** recovery from authoritative simulator state — never from LLM output
+5. **Executes** approved recovery actions through the configured provider; the real demo path uses Razorpay Test Mode
+6. **Verifies** recovery from authoritative provider state — never from LLM output
 7. **Measures** verified recovered revenue across a batch with a complete, append-only audit trail
 
-> ⚠ All data is synthetic. No real payments, no real customer data, no real gateways. Ever.
+> ⚠ Simulation runs are synthetic and isolated. The real checkout path uses Razorpay Test Mode only. No LIVE credentials or real money are supported.
+
+## Real Razorpay Test Mode Checkout
+
+The browser route `/checkout?case_id=<recovery-case-id>` loads the official Razorpay Checkout script. The backend creates the order for that exact persisted case, returns only the public key ID, and stores the Razorpay order ID. After Checkout returns its callback values, `POST /api/v1/payments/verify` performs server-side HMAC verification and fetches the payment from Razorpay. Revenue is counted only when the provider reports a captured payment whose order, amount, and currency match the case. Pending, failed, mismatched, duplicate, or unsigned callbacks never count as recovered.
 
 ---
 
@@ -73,7 +77,7 @@ FAILED_PAYMENT  FAILED_SUBSCRIPTION  CHECKOUT_ABANDONED
 
 | Layer | Tech |
 |---|---|
-| Frontend | Next.js 14, TypeScript, Tailwind CSS, Recharts, shadcn/ui |
+| Frontend | Vite, React, TypeScript |
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic |
 | Agent | LangGraph, LangChain, OpenAI (optional), MockProvider (deterministic fallback) |
 | Database | PostgreSQL 16 |
@@ -144,7 +148,11 @@ See `.env.example` for all variables. Key ones:
 |---|---|---|
 | `LLM_PROVIDER` | `mock` | `mock` = deterministic fallback, `openai` = real LLM |
 | `OPENAI_API_KEY` | *(empty)* | Only needed if `LLM_PROVIDER=openai` |
-| `SIMULATION_MODE` | `true` | Always `true` — no real payments |
+| `PAYMENT_PROVIDER` | `simulator` | Use `razorpay_test` for the real Test Mode Checkout path |
+| `RAZORPAY_KEY_ID` | *(empty)* | Backend-only Razorpay Test Mode public key |
+| `RAZORPAY_KEY_SECRET` | *(empty)* | Backend-only Razorpay Test Mode secret |
+| `RAZORPAY_WEBHOOK_SECRET` | *(empty)* | Backend-only webhook signing secret |
+| `SIMULATION_MODE` | `true` | Enables isolated synthetic batch experiments only |
 | `SIMULATION_SEED` | `42` | Reproducible datasets |
 | `DATABASE_URL` | local Postgres | Connection string |
 

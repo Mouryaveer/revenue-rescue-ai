@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from agents.graph.recovery_graph import RecoveryAgent
 from app.core.config import settings
+from app.providers.razorpay_test_provider import get_payment_provider
 from app.models.enums import (
     ActorType,
     AuditEventType,
@@ -233,11 +234,19 @@ class RecoveryService:
         )
 
         try:
+            # Get the appropriate payment provider based on configuration
+            payment_provider = get_payment_provider(
+                provider_name=settings.PAYMENT_PROVIDER,
+                razorpay_key_id=settings.RAZORPAY_KEY_ID,
+                razorpay_key_secret=settings.RAZORPAY_KEY_SECRET,
+            )
+
             agent = RecoveryAgent(
                 policy=policy_config,
                 llm_provider=settings.LLM_PROVIDER,
                 api_key=settings.OPENAI_API_KEY,
                 model=settings.OPENAI_MODEL,
+                payment_provider=payment_provider,
             )
             final_state = agent.run(initial_state)
             await self._apply_agent_result(case, agent_run, final_state)

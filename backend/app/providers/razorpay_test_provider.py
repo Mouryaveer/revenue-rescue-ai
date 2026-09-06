@@ -20,7 +20,12 @@ from __future__ import annotations
 
 import structlog
 
-from app.providers.base import PaymentProvider, PaymentResult, PaymentStatus, ProviderMode, RetryResult
+try:
+    import razorpay
+except ImportError:  # pragma: no cover - optional dependency is diagnosed at runtime
+    razorpay = None
+
+from app.providers.base import OrderResult, PaymentProvider, PaymentResult, PaymentStatus, ProviderMode, RetryResult
 
 logger = structlog.get_logger(__name__)
 
@@ -37,7 +42,7 @@ class RazorpayTestProvider(PaymentProvider):
         self._key_id = key_id
         self._key_secret = key_secret
         self._client = self._init_client(key_id, key_secret)
-        logger.info("razorpay_test_provider_initialized", key_id_prefix=key_id[:12])
+        logger.info("razorpay_test_provider_initialized")
 
     @staticmethod
     def _validate_test_credentials(key_id: str, key_secret: str) -> None:
@@ -54,7 +59,8 @@ class RazorpayTestProvider(PaymentProvider):
     @staticmethod
     def _init_client(key_id: str, key_secret: str):
         try:
-            import razorpay
+            if razorpay is None:
+                raise ImportError
             return razorpay.Client(auth=(key_id, key_secret))
         except ImportError:
             logger.warning("razorpay_sdk_not_installed", msg="Install razorpay package: pip install razorpay")
@@ -83,6 +89,52 @@ class RazorpayTestProvider(PaymentProvider):
         except Exception as e:
             logger.error("razorpay_get_payment_failed", payment_id=payment_id, error=str(e))
             return self._unavailable(payment_id)
+
+    def create_order(
+        self,
+        *,
+        amount_paise: int,
+        currency: str = "INR",
+        case_id: str,
+        customer_id: str,
+        notes: dict | None = None,
+    ) -> OrderResult:
+        """Create a Razorpay order for a recovery case."""
+        if not self._client:
+            raise ValueError("Razorpay client is not available")
+
+        try:
+            order_data = {
+                "amount": amount_paise,
+                "currency": currency,
+                "receipt": f"case-{case_id}",
+                "notes": {
+                    "case_id": case_id,
+                    "customer_id": customer_id,
+                    "environment": "TEST_MODE",
+                    **(notes or {}),
+                },
+            }
+
+            order = self._client.order.create(order_data)
+
+            logger.info(
+                "razorpay_order_created",
+                order_id=order["id"],
+                amount=amount_paise,
+                case_id=case_id,
+            )
+
+            return OrderResult(
+                order_id=order["id"],
+                amount_paise=amount_paise,
+                currency=currency,
+                provider=self.mode,
+                is_synthetic=False,
+            )
+        except Exception as e:
+            logger.error("razorpay_order_creation_failed", case_id=case_id, error=str(e))
+            raise ValueError(f"Failed to create Razorpay order: {str(e)}")
 
     def retry_payment(
         self,
@@ -169,19 +221,17 @@ def get_payment_provider(
     provider_name: str = "simulator",
     razorpay_key_id: str = "",
     razorpay_key_secret: str = "",
-    simulator_seed: int = 42,
 ) -> PaymentProvider:
     """
     Factory — returns the correct PaymentProvider based on config.
     Falls back to SimulatorPaymentProvider if Razorpay credentials are missing/invalid.
     """
-    from app.providers.simulator_provider import SimulatorPaymentProvider
 
     if provider_name == "razorpay_test":
-        try:
-            return RazorpayTestProvider(razorpay_key_id, razorpay_key_secret)
-        except ValueError as e:
-            logger.warning("razorpay_provider_fallback", reason=str(e))
-            return SimulatorPaymentProvider(seed=simulator_seed)
+        return RazorpayTestProvider(razorpay_key_id, razorpay_key_secret)
 
-    return SimulatorPaymentProvider(seed=simulator_seed)
+    if provider_name == "simulator":
+        from app.providers.simulator_provider import SimulatorPaymentProvider
+        return SimulatorPaymentProvider()
+
+    raise ValueError(f"Unknown payment provider: {provider_name}. Use 'simulator' or 'razorpay_test'.")

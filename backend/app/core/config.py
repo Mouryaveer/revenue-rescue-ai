@@ -24,9 +24,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Payment Provider
-    PAYMENT_PROVIDER: str = "simulator"
+    PAYMENT_PROVIDER: Literal["simulator", "razorpay_test", "disabled"] = "simulator"
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     # LLM
     LLM_PROVIDER: Literal["openai", "mock"] = "mock"
@@ -56,6 +57,15 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+
+    @property
+    def razorpay_test_ready(self) -> bool:
+        """True only for a complete Test Mode configuration; never accept Live keys."""
+        return (
+            self.PAYMENT_PROVIDER == "razorpay_test"
+            and self.RAZORPAY_KEY_ID.startswith("rzp_test_")
+            and bool(self.RAZORPAY_KEY_SECRET)
+        )
 
     @field_validator("OPENAI_API_KEY", mode="before")
     @classmethod

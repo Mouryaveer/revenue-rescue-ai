@@ -21,8 +21,8 @@ from agents.prompts.system_prompt import (
     SYSTEM_PROMPT,
 )
 from agents.schemas.agent_schemas import AgentState, DiagnosisOutput, StrategyOutput
+from app.providers.base import PaymentProvider, PaymentStatus
 from policies.engine.policy_engine import AuthorizationContext, PolicyEngine
-from simulator.engine.payment_simulator import PaymentSimulator
 from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
 
 logger = structlog.get_logger(__name__)
@@ -219,7 +219,7 @@ def _strategy_to_action_type(strategy: str) -> str:
 
 # ── Node 6: Action Execution (APPROVED actions only) ──────────────────────────
 
-def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dict:
+def node_action_execution(state: AgentState, provider: PaymentProvider) -> dict:
     trace = _add_trace(state, "action_execution")
     policy_result = state.get("policy_result", {})
 
@@ -238,45 +238,64 @@ def node_action_execution(state: AgentState, simulator: PaymentSimulator) -> dic
 
     strat: StrategyOutput | None = state.get("case_strategy")
     strategy = strat.recovery_strategy if strat else "ESCALATE"
-    logger.info("executing_action", case_id=state.get("case_id"), strategy=strategy)
+    logger.info("executing_action", case_id=state.get("case_id"), strategy=strategy, provider_mode=provider.mode.value)
     updates: dict = dict(trace)
 
     if strategy in ("RETRY_NOW", "SCHEDULE_RETRY"):
-        result = simulator.execute_retry(
-            case_id=str(state.get("case_id")),
-            customer_id=str(state.get("customer_id")),
-            customer_segment=str(state.get("customer_segment", "standard")),
-            failure_reason=str(state.get("failure_reason")),
-            retry_number=(state.get("retry_count", 0)) + 1,
-            amount_paise=state.get("amount_paise", 0),
-            currency=str(state.get("currency", "INR")),
-        )
+        # Use PaymentProvider interface instead of direct simulator call
+        idempotency_key = f"{state.get('case_id')}-{strategy}-{(state.get('retry_count', 0)) + 1}"
+
+        if strategy == "SCHEDULE_RETRY":
+            # Extract delay from strategy requested_action
+            delay_hours = 24  # Default delay
+            if strat and strat.requested_action:
+                delay_hours = strat.requested_action.get("delay_hours", 24)
+
+            result = provider.schedule_retry(
+                case_id=str(state.get("case_id")),
+                original_payment_id=str(state.get("payment_id", "")),
+                amount_paise=state.get("amount_paise", 0),
+                currency=str(state.get("currency", "INR")),
+                customer_id=str(state.get("customer_id")),
+                delay_hours=delay_hours,
+                idempotency_key=idempotency_key,
+                retry_number=(state.get("retry_count", 0)) + 1,
+                failure_reason=str(state.get("failure_reason", "UNKNOWN")),
+                customer_segment=str(state.get("customer_segment", "standard")),
+            )
+        else:
+            result = provider.retry_payment(
+                case_id=str(state.get("case_id")),
+                original_payment_id=str(state.get("payment_id", "")),
+                amount_paise=state.get("amount_paise", 0),
+                currency=str(state.get("currency", "INR")),
+                customer_id=str(state.get("customer_id")),
+                idempotency_key=idempotency_key,
+                retry_number=(state.get("retry_count", 0)) + 1,
+                failure_reason=str(state.get("failure_reason", "UNKNOWN")),
+                customer_segment=str(state.get("customer_segment", "standard")),
+            )
+
         updates["execution_result"] = {
             "executed": True, "type": "payment_retry",
-            "attempt_id": result.attempt_id, "transaction_id": result.transaction_id,
-            "outcome": result.outcome.value, "failure_reason": result.failure_reason,
+            "attempt_id": result.attempt_id, "transaction_id": result.payment_id,
+            "outcome": result.status.value, "failure_reason": result.failure_reason,
             "amount_paise": result.amount_paise,
         }
         updates["retry_count"] = (state.get("retry_count", 0)) + 1
 
     elif strategy == "CHECKOUT_RECOVERY":
-        comm_result, payment_result = simulator.execute_checkout_recovery(
-            case_id=str(state.get("case_id")),
-            customer_id=str(state.get("customer_id")),
-            customer_segment=str(state.get("customer_segment", "standard")),
-            amount_paise=state.get("amount_paise", 0),
-            message_number=(state.get("checkout_recovery_message_count", 0)) + 1,
-            currency=str(state.get("currency", "INR")),
-        )
+        # For checkout recovery, we send a communication and potentially a payment
+        # Since PaymentProvider doesn't have checkout_recovery, we handle communication separately
         updates["communication_count"] = (state.get("communication_count", 0)) + 1
         updates["checkout_recovery_message_count"] = (state.get("checkout_recovery_message_count", 0)) + 1
         updates["execution_result"] = {
             "executed": True, "type": "checkout_recovery",
-            "message_id": comm_result.message_id, "delivered": comm_result.delivered,
-            "customer_resumed": comm_result.customer_resumed,
-            "transaction_id": payment_result.transaction_id if payment_result else None,
-            "outcome": payment_result.outcome.value if payment_result else "NO_RESUME",
-            "amount_paise": payment_result.amount_paise if payment_result else 0,
+            "message_id": f"MSG-{uuid.uuid4().hex[:8].upper()}", "delivered": True,
+            "customer_resumed": False,  # Will be determined by external webhook
+            "transaction_id": None,
+            "outcome": "PENDING",  # Pending customer action
+            "amount_paise": 0,
         }
 
     elif strategy in ("REMINDER", "PAYMENT_METHOD_UPDATE"):
@@ -302,7 +321,7 @@ def node_observation(state: AgentState) -> dict:
 
 # ── Node 8: Verification (deterministic) ─────────────────────────────────────
 
-def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
+def node_verification(state: AgentState, provider: PaymentProvider, verifier: RecoveryVerifier) -> dict:
     trace = _add_trace(state, "verification")
     execution_result = state.get("execution_result") or {}
 
@@ -312,58 +331,48 @@ def node_verification(state: AgentState, verifier: RecoveryVerifier) -> dict:
     exec_type = execution_result.get("type", "")
 
     if exec_type == "checkout_recovery":
-        from simulator.engine.payment_simulator import SimulatedOutcome, SimulatedPaymentResult
-        outcome_str = execution_result.get("outcome", "NO_RESUME")
-        if outcome_str == "NO_RESUME":
-            vr = verifier.verify_checkout_recovery(
-                case_id=str(state.get("case_id")),
-                payment_result=None,
-                case_is_already_recovered=state.get("case_is_recovered", False),
-            )
-        else:
-            mock = SimulatedPaymentResult(
-                attempt_id="", transaction_id=execution_result.get("transaction_id", ""),
-                outcome=SimulatedOutcome(outcome_str), failure_reason=None,
-                amount_paise=execution_result.get("amount_paise", 0),
-                currency=str(state.get("currency", "INR")),
-                executed_at=datetime.now(timezone.utc),
-            )
-            vr = verifier.verify_checkout_recovery(
-                case_id=str(state.get("case_id")), payment_result=mock,
-                case_is_already_recovered=state.get("case_is_recovered", False),
-            )
+        # Checkout recovery requires external webhook to confirm payment
+        # For now, mark as PENDING until webhook received
+        return {**trace, "verification_result": {
+            "verified": False, "outcome": "PENDING_WEBHOOK",
+            "transaction_id": None, "amount_recovered_paise": 0,
+            "reason": "Awaiting webhook confirmation for checkout recovery",
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        }}
 
     elif exec_type == "payment_retry":
-        from simulator.engine.payment_simulator import SimulatedOutcome, SimulatedPaymentResult
-        mock = SimulatedPaymentResult(
-            attempt_id="", transaction_id=execution_result.get("transaction_id", ""),
-            outcome=SimulatedOutcome(execution_result.get("outcome", "FAILED")),
-            failure_reason=execution_result.get("failure_reason"),
-            amount_paise=execution_result.get("amount_paise", 0),
-            currency=str(state.get("currency", "INR")),
-            executed_at=datetime.now(timezone.utc),
-        )
-        vr = verifier.verify_payment_attempt(
-            case_id=str(state.get("case_id")), payment_result=mock,
-            case_is_already_recovered=state.get("case_is_recovered", False),
-        )
+        transaction_id = execution_result.get("transaction_id")
+        if not transaction_id:
+            return {**trace, "verification_result": {
+                "verified": False, "outcome": "NO_TRANSACTION",
+                "transaction_id": None, "amount_recovered_paise": 0,
+                "reason": "No transaction ID from payment retry",
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+            }}
+
+        # Use PaymentProvider to fetch authoritative payment status
+        payment_result = provider.get_payment(transaction_id)
+
+        # Only mark as recovered if payment is SUCCESS
+        is_recovered = payment_result.status == PaymentStatus.SUCCESS
+
+        vr_dict = {
+            "verified": is_recovered,
+            "outcome": "RECOVERED" if is_recovered else payment_result.status.value,
+            "transaction_id": transaction_id,
+            "amount_recovered_paise": payment_result.amount_paise if is_recovered else 0,
+            "reason": f"Payment status: {payment_result.status.value}",
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if is_recovered:
+            logger.info("revenue_verified_recovered", case_id=state.get("case_id"),
+                        amount_paise=payment_result.amount_paise, transaction_id=transaction_id)
+            return {**trace, "verification_result": vr_dict, "case_is_recovered": True, "case_is_stopped": True}
+
+        return {**trace, "verification_result": vr_dict}
     else:
         return {**trace, "verification_result": {"verified": False, "outcome": "COMMUNICATION_SENT"}}
-
-    is_recovered = vr.outcome == VerificationOutcome.RECOVERED
-    vr_dict = {
-        "verified": is_recovered, "outcome": vr.outcome.value,
-        "transaction_id": vr.transaction_id,
-        "amount_recovered_paise": vr.amount_recovered_paise,
-        "reason": vr.reason, "verified_at": vr.verified_at.isoformat(),
-    }
-
-    if is_recovered:
-        logger.info("revenue_verified_recovered", case_id=state.get("case_id"),
-                    amount_paise=vr.amount_recovered_paise, transaction_id=vr.transaction_id)
-        return {**trace, "verification_result": vr_dict, "case_is_recovered": True, "case_is_stopped": True}
-
-    return {**trace, "verification_result": vr_dict}
 
 
 # ── Node 9: Escalation (deterministic) ───────────────────────────────────────

@@ -111,6 +111,8 @@ class SimulationService:
                 else:
                     # AI mode: run full agent
                     from agents.schemas.agent_schemas import make_initial_state
+                    from app.providers.simulator_provider import SimulatorPaymentProvider
+
                     state = make_initial_state(
                         case_id=f"sim-{run.simulation_id}-{i}",
                         agent_run_id=str(uuid.uuid4()),
@@ -128,7 +130,7 @@ class SimulationService:
                         policy=policy_config,
                         llm_provider=settings.LLM_PROVIDER,
                         api_key=settings.OPENAI_API_KEY,
-                        simulator_seed=seed + i,
+                        payment_provider=SimulatorPaymentProvider(seed=seed + i),
                     )
                     final = agent.run(state)
                     # TypedDict is a plain dict at runtime — must use .get()

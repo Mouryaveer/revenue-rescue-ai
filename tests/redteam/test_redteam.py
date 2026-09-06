@@ -13,6 +13,7 @@ import pytest
 from agents.graph.recovery_graph import RecoveryAgent
 from agents.nodes.llm_provider import MockProvider
 from agents.schemas.agent_schemas import AgentState
+from app.providers.simulator_provider import SimulatorPaymentProvider
 from policies.engine.policy_engine import AuthorizationContext, PolicyEngine
 from policies.schemas.policy_schema import PolicyConfig
 from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
@@ -49,7 +50,11 @@ def make_ctx(**overrides) -> AuthorizationContext:
 
 
 def make_agent(seed: int = 42) -> RecoveryAgent:
-    return RecoveryAgent(policy=default_policy(), llm_provider="mock", simulator_seed=seed)
+    return RecoveryAgent(
+        policy=default_policy(),
+        llm_provider="mock",
+        payment_provider=SimulatorPaymentProvider(seed=seed)
+    )
 
 
 def make_state(**overrides) -> AgentState:
@@ -227,7 +232,7 @@ def test_rt11_malformed_llm_output_rejected():
 def test_rt12_action_blocked_without_approval():
     """Action executor must NOT execute if policy_result.decision != APPROVED."""
     from agents.nodes.nodes import node_action_execution
-    from simulator.engine.payment_simulator import PaymentSimulator
+    from app.providers.simulator_provider import SimulatorPaymentProvider
     state = make_state()
     # Inject a DENIED policy result into the TypedDict state
     state["policy_result"] = {
@@ -238,8 +243,8 @@ def test_rt12_action_blocked_without_approval():
         "violations": ["TEST"],
     }
     state["case_strategy"] = None
-    sim = PaymentSimulator(seed=42)
-    result = node_action_execution(state, simulator=sim)
+    provider = SimulatorPaymentProvider(seed=42)
+    result = node_action_execution(state, provider=provider)
     # result is a dict of updates; execution_result must show not executed
     assert result.get("execution_result") is not None
     assert result["execution_result"]["executed"] is False

@@ -4,6 +4,8 @@ Recovery models: RecoveryCase, RecoveryAction, AgentRun, AgentDecision, Escalati
 
 import uuid
 
+from datetime import datetime
+
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -50,6 +52,12 @@ class RecoveryCase(TimestampedModel):
     is_recovered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_stopped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     escalation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Provider payment fields (nullable, indexed, unique)
+    razorpay_order_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True, index=True)
+    razorpay_payment_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True, index=True)
+    provider_payment_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    provider_payment_timestamp: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Source event idempotency key
     source_event_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)

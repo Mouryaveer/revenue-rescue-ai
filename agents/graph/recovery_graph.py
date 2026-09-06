@@ -33,9 +33,9 @@ from agents.nodes.nodes import (
     node_verification,
 )
 from agents.schemas.agent_schemas import AgentState, make_initial_state
+from app.providers.base import PaymentProvider
 from policies.engine.policy_engine import PolicyEngine
 from policies.schemas.policy_schema import PolicyConfig
-from simulator.engine.payment_simulator import PaymentSimulator
 from simulator.engine.recovery_verifier import RecoveryVerifier
 
 # Disable langsmith tracing to avoid Pydantic v1 import issues
@@ -92,7 +92,7 @@ def increment_replan(state: AgentState) -> dict:
 def build_recovery_graph(
     llm: LLMProvider,
     policy_engine: PolicyEngine,
-    simulator: PaymentSimulator,
+    provider: PaymentProvider,
     verifier: RecoveryVerifier,
 ):
     from langgraph.graph import END, StateGraph
@@ -102,8 +102,8 @@ def build_recovery_graph(
     diag_node   = partial(node_diagnosis, llm=llm)
     strat_node  = partial(node_strategy, llm=llm)
     policy_node = partial(node_policy_check, policy_engine=policy_engine)
-    exec_node   = partial(node_action_execution, simulator=simulator)
-    verify_node = partial(node_verification, verifier=verifier)
+    exec_node   = partial(node_action_execution, provider=provider)
+    verify_node = partial(node_verification, provider=provider, verifier=verifier)
 
     graph.add_node("risk_detection",   node_risk_detection)
     graph.add_node("context_builder",  node_context_builder)
@@ -144,14 +144,16 @@ class RecoveryAgent:
         llm_provider: str = "mock",
         api_key: str = "",
         model: str = "gpt-4o",
-        simulator_seed: int = 42,
+        *,
+        payment_provider: PaymentProvider,
     ) -> None:
         self._llm = get_llm_provider(llm_provider, api_key, model)
         self._policy_engine = PolicyEngine(policy)
-        self._simulator = PaymentSimulator(seed=simulator_seed)
+        self._provider = payment_provider
         self._verifier = RecoveryVerifier()
+
         self._graph = build_recovery_graph(
-            self._llm, self._policy_engine, self._simulator, self._verifier
+            self._llm, self._policy_engine, self._provider, self._verifier
         )
 
     def run(self, initial_state: AgentState) -> AgentState:

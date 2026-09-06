@@ -3,7 +3,18 @@ Alembic env.py — async SQLAlchemy setup.
 """
 
 import asyncio
+import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
+# Add backend/ to path so `from app.xxx` resolves correctly when running from repo root
+_backend = Path(__file__).resolve().parents[2] / "backend"
+if str(_backend) not in sys.path:
+    sys.path.insert(0, str(_backend))
+
+# Override sqlalchemy.url with DATABASE_URL env var (for local dev without Docker)
+_db_url = os.environ.get("DATABASE_URL")
 
 from alembic import context
 from sqlalchemy import pool
@@ -17,6 +28,10 @@ from app.core.database import Base
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Override DB URL for local dev
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata
 
