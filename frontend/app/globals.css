@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design Token System ──────────────────────────────────────────────────── */
+/* Razorpay-inspired: strong blue accent (#528FF5 → brand), white surfaces,   */
+/* dark typography, crisp borders, fintech density.                            */
+/* Change --brand-primary to re-skin the entire product.                       */
+
+@layer base {
+  :root {
+    /* Brand — Razorpay-inspired blue (primary action color) */
+    --brand-primary:       220 91% 64%;   /* #528FF5 */
+    --brand-primary-hover: 220 91% 57%;
+    --brand-primary-soft:  220 91% 95%;   /* very light blue tint */
+
+    /* Surfaces */
+    --background:          0 0% 97%;      /* near-white page bg */
+    --surface:             0 0% 100%;     /* card / panel */
+    --surface-elevated:    220 20% 98%;   /* slightly off-white */
+    --surface-dark:        222 25% 10%;   /* dark panels / sidebar */
+
+    /* Borders */
+    --border:              220 13% 88%;
+    --border-strong:       220 13% 78%;
+
+    /* Text */
+    --text-primary:        222 40% 10%;
+    --text-secondary:      222 15% 42%;
+    --text-tertiary:       222 10% 62%;
+    --text-on-brand:       0 0% 100%;
+
+    /* Status */
+    --success:             142 71% 40%;
+    --success-soft:        142 60% 94%;
+    --warning:             38 95% 48%;
+    --warning-soft:        38 95% 94%;
+    --danger:              0 80% 52%;
+    --danger-soft:         0 80% 95%;
+    --info:                220 91% 64%;
+    --info-soft:           220 91% 95%;
+
+    /* Tailwind mappings */
+    --card:                var(--surface);
+    --card-foreground:     var(--text-primary);
+    --primary:             var(--brand-primary);
+    --primary-foreground:  var(--text-on-brand);
+    --secondary:           220 13% 93%;
+    --secondary-foreground: var(--text-secondary);
+    --muted:               220 13% 93%;
+    --muted-foreground:    var(--text-secondary);
+    --accent:              220 91% 95%;
+    --accent-foreground:   var(--brand-primary);
+    --destructive:         var(--danger);
+    --destructive-foreground: 0 0% 100%;
+    --ring:                var(--brand-primary);
+    --radius:              0.5rem;
+
+    /* Input */
+    --input:               var(--border);
+    --foreground:          var(--text-primary);
+  }
+
+  /* Dark mode — keep operational for Agent Command Center overlays */
+  .dark {
+    --background:          222 22% 8%;
+    --surface:             222 20% 11%;
+    --surface-elevated:    222 18% 14%;
+    --surface-dark:        222 25% 7%;
+    --border:              222 14% 18%;
+    --border-strong:       222 14% 25%;
+    --text-primary:        210 20% 92%;
+    --text-secondary:      210 15% 55%;
+    --text-tertiary:       210 10% 40%;
+    --card:                var(--surface);
+    --card-foreground:     var(--text-primary);
+    --foreground:          var(--text-primary);
+    --primary:             var(--brand-primary);
+    --secondary:           222 14% 16%;
+    --secondary-foreground: var(--text-secondary);
+    --muted:               222 14% 14%;
+    --muted-foreground:    var(--text-secondary);
+    --accent:              222 14% 18%;
+    --accent-foreground:   var(--text-primary);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--text-primary));
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ── Typography utilities ─────────────────────────────────────────────────── */
+.label-xs    { @apply text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]; }
+.label-sm    { @apply text-sm font-medium text-[hsl(var(--text-secondary))]; }
+.mono        { @apply font-mono text-sm; }
+.display-num { @apply font-mono text-2xl font-bold tabular-nums tracking-tight; }
+
+/* ── Environment / mode badges ────────────────────────────────────────────── */
+.badge-simulation {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
+         text-xs font-semibold border
+         bg-[hsl(var(--warning-soft))] text-[hsl(var(--warning))] border-[hsl(var(--warning))]/30;
+}
+.badge-razorpay-test {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
+         text-xs font-semibold border
+         bg-[hsl(var(--brand-primary-soft))] text-[hsl(var(--brand-primary))]
+         border-[hsl(var(--brand-primary))]/30;
+}
+.badge-synthetic {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
+         bg-orange-50 text-orange-600 border border-orange-200;
+}
+
+/* ── Status colors ────────────────────────────────────────────────────────── */
+.status-recovered  { @apply text-[hsl(var(--success))] bg-[hsl(var(--success-soft))] border-[hsl(var(--success))]/30; }
+.status-escalated  { @apply text-[hsl(var(--warning))] bg-[hsl(var(--warning-soft))] border-[hsl(var(--warning))]/30; }
+.status-failed     { @apply text-[hsl(var(--danger))]  bg-[hsl(var(--danger-soft))]  border-[hsl(var(--danger))]/30; }
+.status-active     { @apply text-[hsl(var(--info))]    bg-[hsl(var(--info-soft))]    border-[hsl(var(--info))]/30; }
+.status-stopped    { @apply text-[hsl(var(--text-secondary))] bg-gray-100 border-gray-200; }
+
+/* ── Card / surface utilities ─────────────────────────────────────────────── */
+.card-surface {
+  @apply bg-[hsl(var(--surface))] border border-[hsl(var(--border))] rounded-lg shadow-sm;
+}
+.card-elevated {
+  @apply bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] rounded-xl shadow-md;
+}
+
+/* ── Visual Recovery Moment ───────────────────────────────────────────────── */
+.recovery-confirmed {
+  @apply relative overflow-hidden rounded-xl border-2 border-[hsl(var(--success))]/40
+         bg-gradient-to-br from-[hsl(var(--success-soft))] to-white;
+}
+
+/* ── Liquid Glass — selective use only ───────────────────────────────────── */
+/* Applied only on: command center overlays, live agent panels, action surfaces */
+.glass-panel {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+.glass-panel-dark {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(15, 18, 28, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
+}
+
+/* ── Agent pipeline node animation ──────────────────────────────────────── */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 hsl(var(--brand-primary) / 0.4); }
+  70%  { box-shadow: 0 0 0 8px hsl(var(--brand-primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--brand-primary) / 0); }
+}
+.node-active { animation: pulse-ring 1.5s ease-out infinite; }
+
+/* ── Scrollbar polish ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border-strong)); border-radius: 3px; }
