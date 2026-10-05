@@ -1,241 +1,848 @@
-RevenueRescue AI
+# RevenueRescue AI
 
-"Find revenue that's slipping away and win it back."
+> **Find revenue that's slipping away — and win it back.**
 
-What it does
+RevenueRescue AI is a **bounded autonomous revenue recovery agent** that detects failed payments and abandoned checkouts, reasons about the failure, proposes recovery strategies, enforces deterministic merchant policies, executes only approved actions, and verifies recovered revenue from authoritative provider state.
 
-RevenueRescue AI is a bounded autonomous revenue recovery agent. It:
+**The core principle:**
 
-Detects failed payments, failed subscriptions, and abandoned checkouts
+> **The LLM reasons. The Policy Engine authorizes. The Recovery Verifier confirms.**
 
-Diagnoses the failure using LLM reasoning (or deterministic fallback — no API key required)
+No LLM can authorize a financial action or declare revenue recovered.
 
-Proposes a context-aware recovery strategy
+---
 
-Enforces merchant-defined policy before any action executes (deterministic, no LLM involvement)
+## ✨ What It Does
 
-Executes approved recovery actions through the configured provider
+RevenueRescue AI provides an end-to-end recovery pipeline for common revenue-loss scenarios:
 
-Verifies recovery from authoritative provider state — never from LLM output
+* 🔎 Detects **failed payments**
+* 🔁 Detects **failed subscriptions**
+* 🛒 Detects **abandoned checkouts**
+* 🧠 Diagnoses failures using an LLM or deterministic fallback
+* 🎯 Proposes context-aware recovery strategies
+* 🛡️ Enforces merchant-defined policies **deterministically**
+* ⚡ Executes **only policy-approved actions**
+* ✅ Verifies recovery using **authoritative provider state**
+* 📊 Measures verified recovered revenue across simulation batches
+* 🧾 Maintains a complete **append-only audit trail**
+* 🚨 Escalates or replans when recovery fails
 
-Measures verified recovered revenue across a batch with a complete, append-only audit trail
+The system runs completely without an OpenAI API key using a deterministic mock provider.
 
-⚠ Simulation runs are synthetic and isolated. No LIVE credentials or real money are supported.
+> ⚠️ **Simulation only:** All simulations use synthetic data. No live payment credentials, real customer data, or real money are supported.
 
-Payment Provider Test Mode
+---
 
-The browser route /checkout?case_id=<recovery-case-id> loads the configured payment provider's checkout script. The backend creates the order for that exact persisted case, returns only the public key ID, and stores the provider order ID.
+# 🏗️ Architecture
 
-After Checkout returns its callback values, POST /api/v1/payments/verify performs server-side verification and fetches the payment from the configured provider. Revenue is counted only when the provider reports a captured payment whose order, amount, and currency match the case.
+```text
+                    Revenue Risk Events
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+ FAILED_PAYMENT    FAILED_SUBSCRIPTION   CHECKOUT_ABANDONED
+        │                  │                  │
+        └──────────────────┼──────────────────┘
+                           ▼
+                 Event Ingestion /
+                  Risk Detection
+                           │
+                           ▼
+                   Context Builder
+                           │
+                           ▼
+                Diagnosis Agent
+             ┌─────────────┴─────────────┐
+             │                           │
+        OpenAI LLM              Deterministic Fallback
+             │                           │
+             └─────────────┬─────────────┘
+                           ▼
+                Recovery Strategy Agent
+                           │
+                           ▼
+                 ┌──────────────────┐
+                 │   Policy Engine  │
+                 │                  │
+                 │  DETERMINISTIC   │
+                 │   ZERO LLM AUTH  │
+                 └────────┬─────────┘
+                          │
+                 APPROVED ACTIONS ONLY
+                          │
+                          ▼
+                   Action Executor
+                          │
+             ┌────────────┴────────────┐
+             ▼                         ▼
+      Payment Simulator      Communication Simulator
+             │                         │
+             └────────────┬────────────┘
+                          ▼
+                Recovery Verifier
+                 AUTHORITATIVE STATE
+                          │
+             ┌────────────┼────────────┐
+             ▼            ▼            ▼
+         RECOVERED      REPLAN      ESCALATE
+             │            │
+             ▼            └──────► Strategy
+            STOP
+             │
+             ▼
+        Audit Ledger
+        Append-only
+             │
+             ▼
+          Dashboard
+      Real simulation data
+```
 
-Pending, failed, mismatched, duplicate, or unsigned callbacks never count as recovered.
+### Core safety guarantees
 
-Architecture
-Revenue Risk Events (3 scenarios)
-         │
-┌────────┼────────────────────┐
-▼        ▼                    ▼
-FAILED_PAYMENT  FAILED_SUBSCRIPTION  CHECKOUT_ABANDONED
-         │
-         ▼
-  Event Ingestion / Risk Detector
-         ↓
-  Context Builder
-         ↓
-  Diagnosis Agent (LLM or deterministic fallback)
-         ↓
-  Recovery Strategy Agent
-         ↓
-  Policy Engine ◄─── deterministic gate, zero LLM involvement
-         ↓
-  Action Executor (APPROVED actions only)
-         ↓
-  Payment Simulator / Communication Simulator
-         ↓
-  Recovery Verifier ◄─── authoritative — not LLM output
-         ↓
-  RECOVERED → STOP   |   REPLAN → Strategy   |   ESCALATE
-         ↓
-  Audit Ledger (append-only)
-         ↓
-  Dashboard (real numbers only — nothing hard-coded)
+| Component                 | Responsibility               | Can authorize money movement? |
+| ------------------------- | ---------------------------- | ----------------------------: |
+| **LLM / Diagnosis Agent** | Reason about failure         |                             ❌ |
+| **Strategy Agent**        | Recommend recovery action    |                             ❌ |
+| **Policy Engine**         | Enforce merchant policy      |                             ✅ |
+| **Action Executor**       | Execute approved action      |    Only after policy approval |
+| **Recovery Verifier**     | Verify provider state        |                             ❌ |
+| **Audit Ledger**          | Record every decision/action |                             ❌ |
 
+**The LLM never executes financial actions, authorizes itself, or declares revenue recovered.**
 
-Core guarantee: The LLM reasons. It never executes financial actions, never authorizes itself, and never declares revenue recovered. Only the Policy Engine authorizes actions. Only the Recovery Verifier confirms recovery.
+---
 
-Recovery scenarios
-Scenario	Failure types	Recovery approach
-Failed Payment	INSUFFICIENT_FUNDS, BANK_DECLINE, EXPIRED_METHOD, GATEWAY_TEMPORARY, AUTH_FAILURE	Retry / update method / escalate
-Failed Subscription	MANDATE_FAILURE, SUBSCRIPTION_GRACE, INSUFFICIENT_FUNDS	Retry sequencing within grace window
-Checkout Abandonment	CHECKOUT_ABANDONED	Recovery message → simulate resume → verify payment
-Stack
-Layer	Tech
-Frontend	Vite, React, TypeScript
-Backend	Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic
-Agent	LangGraph, LangChain, OpenAI (optional), MockProvider (deterministic fallback)
-Database	PostgreSQL 16
-Cache / Jobs	Redis, Celery
-Simulation	Faker, Pandas, NumPy, seeded RNG
-Testing	Pytest, Playwright, Vitest
-Quality	Ruff, MyPy, Bandit
-CI/CD	GitHub Actions
-Dev	Docker Compose
-Prerequisites
+# 💳 Test-Mode Payment Flow
 
-Docker Desktop
+The `/checkout?case_id=<recovery-case-id>` route provides an isolated test checkout flow using the configured payment provider.
 
-Git
+The backend:
 
-Node.js 20+
+1. Loads the **exact persisted recovery case**
+2. Creates the provider order for that case
+3. Returns only the provider's **public key ID**
+4. Stores the provider order ID
+5. Receives checkout callback values
+6. Performs server-side verification
+7. Fetches the payment directly from the configured provider
+8. Compares the authoritative payment against the recovery case
+9. Counts revenue only when the provider reports a valid captured payment
 
-Python 3.12+
+### Revenue is counted only when all conditions match
 
-That's it. Everything else is managed by Docker Compose and pip/npm.
+```text
+Provider payment = CAPTURED
+        +
+Order ID matches case
+        +
+Amount matches case
+        +
+Currency matches case
+        ↓
+     RECOVERED
+```
 
-Quick start
-git clone <repo>
-cd revenue-rescue-ai
-cp .env.example .env
+The following **never count as recovered revenue**:
 
-# Start all services (Postgres, Redis, backend, worker, frontend)
-docker compose up --build
+* Pending payments
+* Failed payments
+* Mismatched orders
+* Mismatched amounts
+* Mismatched currencies
+* Duplicate callbacks
+* Unsigned/invalid callbacks
+* LLM-generated claims of success
 
-# In a separate terminal — run migrations and seed demo data
-make migrate
+---
+
+# 🎯 Recovery Scenarios
+
+| Scenario                 | Failure Types                                                                               | Recovery Approach                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Failed Payment**       | `INSUFFICIENT_FUNDS`, `BANK_DECLINE`, `EXPIRED_METHOD`, `GATEWAY_TEMPORARY`, `AUTH_FAILURE` | Retry, update payment method, or escalate            |
+| **Failed Subscription**  | `MANDATE_FAILURE`, `SUBSCRIPTION_GRACE`, `INSUFFICIENT_FUNDS`                               | Retry sequencing within the grace window             |
+| **Checkout Abandonment** | `CHECKOUT_ABANDONED`                                                                        | Recovery message → simulated resume → verify payment |
+
+---
+
+# 🧠 Agent Pipeline
+
+RevenueRescue AI separates **reasoning** from **authorization**.
+
+### 1. Event ingestion
+
+A payment failure, subscription failure, or checkout abandonment enters the system.
+
+### 2. Context building
+
+Relevant case information is assembled into a structured context.
+
+### 3. Diagnosis
+
+The diagnosis agent determines the likely failure reason.
+
+It can use:
+
+* OpenAI
+* A deterministic mock/fallback implementation
+
+The LLM output is validated against a **Pydantic schema** before it enters the pipeline.
+
+### 4. Recovery strategy
+
+The strategy agent proposes a context-aware recovery action.
+
+### 5. Policy enforcement
+
+The deterministic Policy Engine evaluates the proposed action against merchant-defined rules.
+
+**No LLM is involved in authorization.**
+
+### 6. Action execution
+
+Only actions explicitly approved by the Policy Engine can execute.
+
+### 7. Recovery verification
+
+The system checks authoritative provider/simulator state.
+
+The LLM's opinion is irrelevant to whether revenue was recovered.
+
+### 8. Replan / escalate / stop
+
+```text
+RECOVERED ─────────► STOP
+
+NOT RECOVERED ─────► REPLAN
+                         │
+                         └──► Strategy Agent
+
+UNSAFE / UNRESOLVED ──► ESCALATE
+```
+
+---
+
+# 🛡️ Safety & Security Model
+
+RevenueRescue AI is designed around **bounded autonomy**.
+
+### Deterministic authorization
+
+The Policy Engine is:
+
+* Deterministic
+* Independently testable
+* Versioned
+* Free of LLM decision-making
+* The only component allowed to authorize recovery actions
+
+### LLM isolation
+
+LLM output:
+
+* Is schema-validated
+* Cannot directly execute actions
+* Cannot bypass policy
+* Cannot authorize itself
+* Cannot mark revenue as recovered
+* Is treated as untrusted reasoning output
+
+### Prompt-injection defense
+
+Customer metadata is treated as **untrusted input**.
+
+Customer-controlled content cannot directly modify system policy or grant action permissions.
+
+### Idempotency
+
+All write endpoints use idempotency keys to prevent duplicate processing.
+
+### Append-only auditing
+
+Audit records are append-only:
+
+* No updates
+* No deletes
+* Policy version recorded
+* Decision recorded
+* Action recorded
+* Verification recorded
+
+### RBAC
+
+Supported roles:
+
+```text
+MERCHANT_ADMIN
+OPERATOR
+AUDITOR
+SYSTEM
+```
+
+### Secrets
+
+Secrets are provided through environment variables and are:
+
+* Never committed
+* Never logged
+* Never exposed to the frontend
+
+### Synthetic data only
+
+No real:
+
+* Payment credentials
+* Card numbers
+* Banking data
+* Customer records
+
+are required or supported.
+
+---
+
+# 🧪 Simulation Environment
+
+RevenueRescue AI includes a deterministic simulation environment for evaluating recovery strategies.
+
+Simulation uses:
+
+* Faker
+* Pandas
+* NumPy
+* Seeded random number generation
+
+Configure reproducibility with:
+
+```env
+SIMULATION_MODE=true
+SIMULATION_SEED=42
+```
+
+Every simulated customer and payment is synthetic.
+
+---
+
+# 📊 Seeded Demo Dataset
+
+Run:
+
+```bash
 make demo
+```
+
+The demo creates **20 deterministic synthetic recovery cases** covering the major paths:
+
+* Successful retries
+
+  * `GATEWAY_TEMPORARY`
+  * `INSUFFICIENT_FUNDS`
+* Subscription mandate recovery
+* Checkout abandonment recovery
+* Policy denials
+
+  * 4th retry
+  * Customer opted out
+  * High-value escalation
+* Red-team cases
+
+  * Unknown failure
+  * Suspicious activity
+
+All synthetic activity is clearly labeled:
+
+```text
+[SYNTHETIC]
+```
+
+in the audit trail.
+
+---
 
 
-Open http://localhost:3000 — the dashboard loads with seeded demo cases.
+---
 
-Running without Docker (local dev)
-# Backend
+# 🧰 Tech Stack
+
+| Layer            | Technology                                               |
+| ---------------- | -------------------------------------------------------- |
+| **Frontend**     | Vite, React, TypeScript                                  |
+| **Backend**      | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic |
+| **Agents**       | LangGraph, LangChain, OpenAI (optional)                  |
+| **Fallback**     | Deterministic MockProvider                               |
+| **Database**     | PostgreSQL 16                                            |
+| **Cache / Jobs** | Redis, Celery                                            |
+| **Simulation**   | Faker, Pandas, NumPy, seeded RNG                         |
+| **Testing**      | Pytest, Playwright, Vitest                               |
+| **Quality**      | Ruff, MyPy, Bandit                                       |
+| **CI/CD**        | GitHub Actions                                           |
+| **Development**  | Docker Compose                                           |
+
+---
+
+# 🚀 Quick Start
+
+## Prerequisites
+
+Install:
+
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+* Git
+* Node.js 20+
+* Python 3.12+
+
+Everything else is managed by Docker Compose and pip/npm.
+
+## 1. Clone the repository
+
+```bash
+git clone <repo-url>
 cd revenue-rescue-ai
+```
+
+## 2. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+The default configuration runs without an OpenAI API key.
+
+## 3. Start the stack
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+* PostgreSQL
+* Redis
+* Backend
+* Celery worker
+* Frontend
+
+## 4. Run migrations
+
+In a separate terminal:
+
+```bash
+make migrate
+```
+
+## 5. Seed demo data
+
+```bash
+make demo
+```
+
+## 6. Open the dashboard
+
+```text
+http://localhost:3000
+```
+
+The dashboard should load with the seeded synthetic recovery cases.
+
+---
+
+# 💻 Local Development Without Docker
+
+### Backend
+
+```bash
+cd revenue-rescue-ai
+
 python -m venv .venv
-.venv/Scripts/activate        # Windows
+```
+
+Windows:
+
+```bash
+.venv\Scripts\activate
+```
+
+Linux/macOS:
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
 pip install -r backend/requirements.txt
+```
 
-# Set env vars (copy .env.example → .env, edit DATABASE_URL)
-uvicorn backend/app/main:app --reload --port 8000
+Configure:
 
-# Frontend
+```bash
+cp .env.example .env
+```
+
+Start the API:
+
+```bash
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+### Frontend
+
+```bash
 cd frontend
 npm install
 npm run dev
+```
 
-Environment variables
+---
 
-See .env.example for all variables. Key ones:
+# ⚙️ Configuration
 
-Variable	Default	Description
-LLM_PROVIDER	mock	mock = deterministic fallback, openai = real LLM
-OPENAI_API_KEY	(empty)	Only needed if LLM_PROVIDER=openai
-PAYMENT_PROVIDER	simulator	Use the configured test provider for the real test checkout path
-PAYMENT_PROVIDER_KEY_ID	(empty)	Backend-only test-mode public key
-PAYMENT_PROVIDER_KEY_SECRET	(empty)	Backend-only test-mode secret
-PAYMENT_PROVIDER_WEBHOOK_SECRET	(empty)	Backend-only webhook signing secret
-SIMULATION_MODE	true	Enables isolated synthetic batch experiments only
-SIMULATION_SEED	42	Reproducible datasets
-DATABASE_URL	local Postgres	Connection string
+See `.env.example` for the complete configuration.
 
-The system runs fully without an OpenAI API key. Set LLM_PROVIDER=mock.
+Important variables:
 
-Running tests
-# All tests (local, no Docker needed)
-python -m pytest policies/tests/ simulator/tests/ agents/tests/ \
-                 tests/redteam/ tests/integration/ \
-                 backend/tests/unit/ backend/tests/integration/ \
-                 -v --tb=short
-# Expected: 130 passed
+| Variable                          | Default        | Description                                                        |
+| --------------------------------- | -------------- | ------------------------------------------------------------------ |
+| `LLM_PROVIDER`                    | `mock`         | `mock` for deterministic fallback, `openai` for real LLM reasoning |
+| `OPENAI_API_KEY`                  | Empty          | Required only when `LLM_PROVIDER=openai`                           |
+| `PAYMENT_PROVIDER`                | `simulator`    | Configured test payment provider                                   |
+| `PAYMENT_PROVIDER_KEY_ID`         | Empty          | Backend-only test-mode public key                                  |
+| `PAYMENT_PROVIDER_KEY_SECRET`     | Empty          | Backend-only test-mode secret                                      |
+| `PAYMENT_PROVIDER_WEBHOOK_SECRET` | Empty          | Backend-only webhook signing secret                                |
+| `SIMULATION_MODE`                 | `true`         | Enables isolated synthetic simulations                             |
+| `SIMULATION_SEED`                 | `42`           | Seed for reproducible datasets                                     |
+| `DATABASE_URL`                    | Local Postgres | PostgreSQL connection string                                       |
 
-# Individual suites
-python -m pytest policies/tests/ -v         # 31 tests — policy engine
-python -m pytest simulator/tests/ -v        # 23 tests — simulator + baseline
-python -m pytest agents/tests/ -v           # 20 tests — LangGraph pipeline
-python -m pytest tests/redteam/ -v          # 25 tests — mandatory safety
-python -m pytest tests/integration/ -v      # 8 tests  — e2e pipeline
+### Run without OpenAI
 
-Seeded demo dataset
-make demo
+The default configuration requires **no API key**:
 
+```env
+LLM_PROVIDER=mock
+```
 
-Creates 20 deterministic synthetic cases covering every scenario in the 5-minute demo:
+To enable OpenAI reasoning:
 
-Successful retries (GATEWAY_TEMPORARY, INSUFFICIENT_FUNDS)
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your-key
+```
 
-Subscription mandate recovery
+---
 
-Checkout abandonment recovery
+# 🧪 Testing
 
-Policy denials (4th retry, opted-out, high-value escalation)
+Run the complete test suite:
 
-Red-team cases (UNKNOWN failure, suspicious activity)
+```bash
+python -m pytest \
+  policies/tests/ \
+  simulator/tests/ \
+  agents/tests/ \
+  tests/redteam/ \
+  tests/integration/ \
+  backend/tests/unit/ \
+  backend/tests/integration/ \
+  -v --tb=short
+```
 
-All clearly labeled [SYNTHETIC] in the audit trail.
+Expected:
 
-5-minute demo flow
-0:00–0:30  Batch overview — 3 scenario types, revenue at risk
-0:30–1:00  Overview dashboard — KPIs from real simulation data
-1:00–2:00  Live case (Failed Payment) → diagnose → policy approve → execute → RECOVERED
-2:00–2:30  Live case (Checkout Abandonment) → recovery message → customer resumes → RECOVERED
-2:30–3:15  Audit trail — full timeline, policy version on every decision
-3:15–4:00  Safety demo: 4th retry → POLICY DENIED; opted-out → DENIED; checkout msg #3 → DENIED
-4:00–5:00  Baseline vs AI batch results — both from real simulation data
+```text
+130 passed
+```
 
-API documentation
+### Individual suites
 
-FastAPI auto-generates Swagger UI at http://localhost:8000/docs.
+```bash
+# Policy Engine
+python -m pytest policies/tests/ -v
 
-Key endpoints:
+# Simulator
+python -m pytest simulator/tests/ -v
 
-POST /api/v1/events/payment-failed         Ingest a payment failure
-POST /api/v1/events/checkout-abandoned     Ingest a checkout abandonment
-GET  /api/v1/recovery-cases                List all recovery cases
-GET  /api/v1/recovery-cases/{id}           Case detail
-GET  /api/v1/recovery-cases/{id}/audit     Case audit trail
-GET  /api/v1/metrics/overview              Dashboard KPIs
-POST /api/v1/simulation/run                Start batch simulation
-GET  /api/v1/simulation/{id}               Simulation status + results
-GET  /api/v1/policies/active               Active merchant policy
+# Agent pipeline
+python -m pytest agents/tests/ -v
 
-Project structure
+# Red-team / safety
+python -m pytest tests/redteam/ -v
+
+# End-to-end integration
+python -m pytest tests/integration/ -v
+```
+
+### Test coverage by suite
+
+| Suite         | Tests | Purpose                         |
+| ------------- | ----: | ------------------------------- |
+| Policy Engine |    31 | Deterministic authorization     |
+| Simulator     |    23 | Payment and recovery simulation |
+| Agents        |    20 | LangGraph recovery pipeline     |
+| Red Team      |    25 | Mandatory safety scenarios      |
+| Integration   |     8 | End-to-end behavior             |
+
+---
+
+# 🔌 API
+
+FastAPI automatically generates interactive API documentation.
+
+**Swagger UI:**
+
+```text
+http://localhost:8000/docs
+```
+
+### Key endpoints
+
+| Method | Endpoint                            | Purpose                       |
+| ------ | ----------------------------------- | ----------------------------- |
+| `POST` | `/api/v1/events/payment-failed`     | Ingest payment failure        |
+| `POST` | `/api/v1/events/checkout-abandoned` | Ingest checkout abandonment   |
+| `GET`  | `/api/v1/recovery-cases`            | List recovery cases           |
+| `GET`  | `/api/v1/recovery-cases/{id}`       | Get case details              |
+| `GET`  | `/api/v1/recovery-cases/{id}/audit` | Get case audit trail          |
+| `GET`  | `/api/v1/metrics/overview`          | Dashboard KPIs                |
+| `POST` | `/api/v1/simulation/run`            | Start batch simulation        |
+| `GET`  | `/api/v1/simulation/{id}`           | Get simulation status/results |
+| `GET`  | `/api/v1/policies/active`           | Get active merchant policy    |
+
+---
+
+# 📁 Project Structure
+
+```text
 revenue-rescue-ai/
-├── backend/         FastAPI app, models, services, schemas
-├── agents/          LangGraph state machine, nodes, prompts, tools
-├── policies/        Policy engine (deterministic), schemas, tests
-├── simulator/       Payment + communication simulator, generators
-├── database/        Alembic migrations, demo seed
-├── frontend/        Dashboard
-├── tests/           Integration, e2e, red-team (25 safety tests)
-├── docs/            Architecture docs
+│
+├── backend/
+│   ├── FastAPI application
+│   ├── models
+│   ├── services
+│   └── schemas
+│
+├── agents/
+│   ├── LangGraph state machine
+│   ├── nodes
+│   ├── prompts
+│   └── tools
+│
+├── policies/
+│   ├── policy engine
+│   ├── schemas
+│   └── tests
+│
+├── simulator/
+│   ├── payment simulator
+│   ├── communication simulator
+│   ├── generators
+│   └── tests
+│
+├── database/
+│   ├── Alembic migrations
+│   └── demo seed
+│
+├── frontend/
+│   └── dashboard
+│
+├── tests/
+│   ├── integration
+│   ├── e2e
+│   └── redteam
+│
+├── docs/
+│   └── architecture documentation
+│
 ├── docker-compose.yml
 ├── .env.example
 ├── Makefile
 └── pyproject.toml
+```
 
-Security model
+---
 
-No real payment credentials, card numbers, or banking data — ever
+# 🔐 Security Principles
 
-All customer data synthetic (Faker-generated)
+RevenueRescue AI follows a **defense-in-depth** model:
 
-Policy Engine is deterministic, independently testable, zero LLM involvement
+```text
+Untrusted Input
+      │
+      ▼
+Structured Validation
+      │
+      ▼
+LLM Reasoning
+      │
+      ▼
+Schema Validation
+      │
+      ▼
+Deterministic Policy Engine
+      │
+      ▼
+Approved Action
+      │
+      ▼
+Authoritative Verification
+      │
+      ▼
+Append-only Audit
+```
 
-LLM output validated against Pydantic schema — malformed output rejected
+The system deliberately prevents a language model from becoming an autonomous financial authority.
 
-All customer metadata treated as untrusted data (prompt injection defense)
+### Non-negotiable boundaries
 
-Idempotency keys on all write endpoints
+```text
+LLM
+ └── Can reason
+ └── Cannot authorize
 
-Append-only audit trail — no updates, no deletes
+Policy Engine
+ └── Can authorize
+ └── Cannot be replaced by LLM output
 
-RBAC: MERCHANT_ADMIN, OPERATOR, AUDITOR, SYSTEM roles
+Action Executor
+ └── Can execute
+ └── Only approved actions
 
-Secrets via .env only — never committed, never logged
+Recovery Verifier
+ └── Can confirm provider state
+ └── Never trusts LLM claims
+```
 
-Definition of done checklist
+---
 
-See docs/checklist.md for the full verification checklist.
+# 📋 Definition of Done
 
-License
+The complete verification checklist is available in:
 
-All payment data is synthetic.
+```text
+docs/checklist.md
+```
+
+It covers:
+
+* Architecture
+* Policy enforcement
+* Recovery execution
+* Provider verification
+* Idempotency
+* Auditability
+* Prompt-injection resistance
+* Red-team scenarios
+* Simulation integrity
+* Test coverage
+
+---
+
+# 🗺️ Recovery Decision Model
+
+A simplified recovery decision looks like:
+
+```text
+                Failure Detected
+                       │
+                       ▼
+                 Diagnose
+                       │
+                       ▼
+              Propose Recovery
+                       │
+                       ▼
+               Policy Check
+                 /          \
+             DENY            APPROVE
+              │                 │
+              ▼                 ▼
+          Audit + Stop      Execute
+                                │
+                                ▼
+                           Verify State
+                           /     |      \
+                          /      |       \
+                    Recovered  Failed   Unsafe
+                       │         │         │
+                       ▼         ▼         ▼
+                      STOP     REPLAN   ESCALATE
+```
+
+---
+
+# 📈 What Makes RevenueRescue AI Different?
+
+### Traditional automation
+
+```text
+IF payment_failed
+THEN retry_payment
+```
+
+### Unbounded AI agent
+
+```text
+LLM decides what happened
+        ↓
+LLM decides what to do
+        ↓
+LLM executes action
+        ↓
+LLM says "recovered"
+```
+
+### RevenueRescue AI
+
+```text
+Detect
+  ↓
+Reason
+  ↓
+Propose
+  ↓
+Deterministic Policy Gate
+  ↓
+Execute Approved Action
+  ↓
+Verify Authoritative State
+  ↓
+Record Everything
+```
+
+This separation makes the system **auditable, testable, bounded, and reproducible**.
+
+---
+
+# ⚠️ Simulation & Payment Safety Notice
+
+RevenueRescue AI is a simulation and engineering project.
+
+**It does not support real-money transactions.**
+
+All payment and customer data used by the project is synthetic or test-mode data.
+
+Never commit:
+
+```text
+.env
+API keys
+payment secrets
+webhook secrets
+real customer data
+real card information
+```
+
+---
+
+# 📄 License
+
+See the repository license file for licensing information.
+
+---
+
+## ⭐ Project Status
+
+RevenueRescue AI is designed as a production-style demonstration of **bounded autonomous agents for revenue recovery**, with deterministic authorization and authoritative verification at the financial boundary.
+
+If you find the project useful, consider giving it a ⭐ on GitHub.
