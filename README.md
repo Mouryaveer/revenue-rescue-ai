@@ -1,34 +1,36 @@
-# RevenueRescue AI
+RevenueRescue AI
 
-**"Find revenue that's slipping away and win it back."**
+"Find revenue that's slipping away and win it back."
 
-Razorpay Buildathon — Track 03: AI Revenue Recovery
-
----
-
-## What it does
+What it does
 
 RevenueRescue AI is a bounded autonomous revenue recovery agent. It:
 
-1. **Detects** failed payments, failed subscriptions, and abandoned checkouts
-2. **Diagnoses** the failure using LLM reasoning (or deterministic fallback — no API key required)
-3. **Proposes** a context-aware recovery strategy
-4. **Enforces** merchant-defined policy before any action executes (deterministic, no LLM involvement)
-5. **Executes** approved recovery actions through the configured provider; the real demo path uses Razorpay Test Mode
-6. **Verifies** recovery from authoritative provider state — never from LLM output
-7. **Measures** verified recovered revenue across a batch with a complete, append-only audit trail
+Detects failed payments, failed subscriptions, and abandoned checkouts
 
-> ⚠ Simulation runs are synthetic and isolated. The real checkout path uses Razorpay Test Mode only. No LIVE credentials or real money are supported.
+Diagnoses the failure using LLM reasoning (or deterministic fallback — no API key required)
 
-## Real Razorpay Test Mode Checkout
+Proposes a context-aware recovery strategy
 
-The browser route `/checkout?case_id=<recovery-case-id>` loads the official Razorpay Checkout script. The backend creates the order for that exact persisted case, returns only the public key ID, and stores the Razorpay order ID. After Checkout returns its callback values, `POST /api/v1/payments/verify` performs server-side HMAC verification and fetches the payment from Razorpay. Revenue is counted only when the provider reports a captured payment whose order, amount, and currency match the case. Pending, failed, mismatched, duplicate, or unsigned callbacks never count as recovered.
+Enforces merchant-defined policy before any action executes (deterministic, no LLM involvement)
 
----
+Executes approved recovery actions through the configured provider
 
-## Architecture
+Verifies recovery from authoritative provider state — never from LLM output
 
-```
+Measures verified recovered revenue across a batch with a complete, append-only audit trail
+
+⚠ Simulation runs are synthetic and isolated. No LIVE credentials or real money are supported.
+
+Payment Provider Test Mode
+
+The browser route /checkout?case_id=<recovery-case-id> loads the configured payment provider's checkout script. The backend creates the order for that exact persisted case, returns only the public key ID, and stores the provider order ID.
+
+After Checkout returns its callback values, POST /api/v1/payments/verify performs server-side verification and fetches the payment from the configured provider. Revenue is counted only when the provider reports a captured payment whose order, amount, and currency match the case.
+
+Pending, failed, mismatched, duplicate, or unsigned callbacks never count as recovered.
+
+Architecture
 Revenue Risk Events (3 scenarios)
          │
 ┌────────┼────────────────────┐
@@ -57,53 +59,40 @@ FAILED_PAYMENT  FAILED_SUBSCRIPTION  CHECKOUT_ABANDONED
   Audit Ledger (append-only)
          ↓
   Dashboard (real numbers only — nothing hard-coded)
-```
 
-**Core guarantee:** The LLM reasons. It never executes financial actions, never authorizes itself, and never declares revenue recovered. Only the Policy Engine authorizes actions. Only the Recovery Verifier confirms recovery.
 
----
+Core guarantee: The LLM reasons. It never executes financial actions, never authorizes itself, and never declares revenue recovered. Only the Policy Engine authorizes actions. Only the Recovery Verifier confirms recovery.
 
-## Recovery scenarios
+Recovery scenarios
+Scenario	Failure types	Recovery approach
+Failed Payment	INSUFFICIENT_FUNDS, BANK_DECLINE, EXPIRED_METHOD, GATEWAY_TEMPORARY, AUTH_FAILURE	Retry / update method / escalate
+Failed Subscription	MANDATE_FAILURE, SUBSCRIPTION_GRACE, INSUFFICIENT_FUNDS	Retry sequencing within grace window
+Checkout Abandonment	CHECKOUT_ABANDONED	Recovery message → simulate resume → verify payment
+Stack
+Layer	Tech
+Frontend	Vite, React, TypeScript
+Backend	Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic
+Agent	LangGraph, LangChain, OpenAI (optional), MockProvider (deterministic fallback)
+Database	PostgreSQL 16
+Cache / Jobs	Redis, Celery
+Simulation	Faker, Pandas, NumPy, seeded RNG
+Testing	Pytest, Playwright, Vitest
+Quality	Ruff, MyPy, Bandit
+CI/CD	GitHub Actions
+Dev	Docker Compose
+Prerequisites
 
-| Scenario | Failure types | Recovery approach |
-|---|---|---|
-| Failed Payment | INSUFFICIENT_FUNDS, BANK_DECLINE, EXPIRED_METHOD, GATEWAY_TEMPORARY, AUTH_FAILURE | Retry / update method / escalate |
-| Failed Subscription | MANDATE_FAILURE, SUBSCRIPTION_GRACE, INSUFFICIENT_FUNDS | Retry sequencing within grace window |
-| Checkout Abandonment | CHECKOUT_ABANDONED | Recovery message → simulate resume → verify payment |
+Docker Desktop
 
----
+Git
 
-## Stack
+Node.js 20+
 
-| Layer | Tech |
-|---|---|
-| Frontend | Vite, React, TypeScript |
-| Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic |
-| Agent | LangGraph, LangChain, OpenAI (optional), MockProvider (deterministic fallback) |
-| Database | PostgreSQL 16 |
-| Cache / Jobs | Redis, Celery |
-| Simulation | Faker, Pandas, NumPy, seeded RNG |
-| Testing | Pytest, Playwright, Vitest |
-| Quality | Ruff, MyPy, Bandit |
-| CI/CD | GitHub Actions |
-| Dev | Docker Compose |
+Python 3.12+
 
----
+That's it. Everything else is managed by Docker Compose and pip/npm.
 
-## Prerequisites
-
-- Docker Desktop
-- Git
-- Node.js 20+
-- Python 3.12+
-
-That's it. Everything else is managed by Docker Compose and `pip`/`npm`.
-
----
-
-## Quick start
-
-```bash
+Quick start
 git clone <repo>
 cd revenue-rescue-ai
 cp .env.example .env
@@ -114,15 +103,11 @@ docker compose up --build
 # In a separate terminal — run migrations and seed demo data
 make migrate
 make demo
-```
 
-Open **http://localhost:3000** — the dashboard loads with seeded demo cases.
 
----
+Open http://localhost:3000 — the dashboard loads with seeded demo cases.
 
-## Running without Docker (local dev)
-
-```bash
+Running without Docker (local dev)
 # Backend
 cd revenue-rescue-ai
 python -m venv .venv
@@ -136,33 +121,25 @@ uvicorn backend/app/main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
-```
 
----
+Environment variables
 
-## Environment variables
+See .env.example for all variables. Key ones:
 
-See `.env.example` for all variables. Key ones:
+Variable	Default	Description
+LLM_PROVIDER	mock	mock = deterministic fallback, openai = real LLM
+OPENAI_API_KEY	(empty)	Only needed if LLM_PROVIDER=openai
+PAYMENT_PROVIDER	simulator	Use the configured test provider for the real test checkout path
+PAYMENT_PROVIDER_KEY_ID	(empty)	Backend-only test-mode public key
+PAYMENT_PROVIDER_KEY_SECRET	(empty)	Backend-only test-mode secret
+PAYMENT_PROVIDER_WEBHOOK_SECRET	(empty)	Backend-only webhook signing secret
+SIMULATION_MODE	true	Enables isolated synthetic batch experiments only
+SIMULATION_SEED	42	Reproducible datasets
+DATABASE_URL	local Postgres	Connection string
 
-| Variable | Default | Description |
-|---|---|---|
-| `LLM_PROVIDER` | `mock` | `mock` = deterministic fallback, `openai` = real LLM |
-| `OPENAI_API_KEY` | *(empty)* | Only needed if `LLM_PROVIDER=openai` |
-| `PAYMENT_PROVIDER` | `simulator` | Use `razorpay_test` for the real Test Mode Checkout path |
-| `RAZORPAY_KEY_ID` | *(empty)* | Backend-only Razorpay Test Mode public key |
-| `RAZORPAY_KEY_SECRET` | *(empty)* | Backend-only Razorpay Test Mode secret |
-| `RAZORPAY_WEBHOOK_SECRET` | *(empty)* | Backend-only webhook signing secret |
-| `SIMULATION_MODE` | `true` | Enables isolated synthetic batch experiments only |
-| `SIMULATION_SEED` | `42` | Reproducible datasets |
-| `DATABASE_URL` | local Postgres | Connection string |
+The system runs fully without an OpenAI API key. Set LLM_PROVIDER=mock.
 
-**The system runs fully without an OpenAI API key.** Set `LLM_PROVIDER=mock`.
-
----
-
-## Running tests
-
-```bash
+Running tests
 # All tests (local, no Docker needed)
 python -m pytest policies/tests/ simulator/tests/ agents/tests/ \
                  tests/redteam/ tests/integration/ \
@@ -176,30 +153,26 @@ python -m pytest simulator/tests/ -v        # 23 tests — simulator + baseline
 python -m pytest agents/tests/ -v           # 20 tests — LangGraph pipeline
 python -m pytest tests/redteam/ -v          # 25 tests — mandatory safety
 python -m pytest tests/integration/ -v      # 8 tests  — e2e pipeline
-```
 
----
-
-## Seeded demo dataset
-
-```bash
+Seeded demo dataset
 make demo
-```
+
 
 Creates 20 deterministic synthetic cases covering every scenario in the 5-minute demo:
-- Successful retries (GATEWAY_TEMPORARY, INSUFFICIENT_FUNDS)
-- Subscription mandate recovery
-- Checkout abandonment recovery
-- Policy denials (4th retry, opted-out, high-value escalation)
-- Red-team cases (UNKNOWN failure, suspicious activity)
 
-All clearly labeled `[SYNTHETIC]` in the audit trail.
+Successful retries (GATEWAY_TEMPORARY, INSUFFICIENT_FUNDS)
 
----
+Subscription mandate recovery
 
-## 5-minute demo flow
+Checkout abandonment recovery
 
-```
+Policy denials (4th retry, opted-out, high-value escalation)
+
+Red-team cases (UNKNOWN failure, suspicious activity)
+
+All clearly labeled [SYNTHETIC] in the audit trail.
+
+5-minute demo flow
 0:00–0:30  Batch overview — 3 scenario types, revenue at risk
 0:30–1:00  Overview dashboard — KPIs from real simulation data
 1:00–2:00  Live case (Failed Payment) → diagnose → policy approve → execute → RECOVERED
@@ -207,17 +180,13 @@ All clearly labeled `[SYNTHETIC]` in the audit trail.
 2:30–3:15  Audit trail — full timeline, policy version on every decision
 3:15–4:00  Safety demo: 4th retry → POLICY DENIED; opted-out → DENIED; checkout msg #3 → DENIED
 4:00–5:00  Baseline vs AI batch results — both from real simulation data
-```
 
----
+API documentation
 
-## API documentation
-
-FastAPI auto-generates Swagger UI at **http://localhost:8000/docs**.
+FastAPI auto-generates Swagger UI at http://localhost:8000/docs.
 
 Key endpoints:
 
-```
 POST /api/v1/events/payment-failed         Ingest a payment failure
 POST /api/v1/events/checkout-abandoned     Ingest a checkout abandonment
 GET  /api/v1/recovery-cases                List all recovery cases
@@ -227,50 +196,46 @@ GET  /api/v1/metrics/overview              Dashboard KPIs
 POST /api/v1/simulation/run                Start batch simulation
 GET  /api/v1/simulation/{id}               Simulation status + results
 GET  /api/v1/policies/active               Active merchant policy
-```
 
----
-
-## Project structure
-
-```
+Project structure
 revenue-rescue-ai/
 ├── backend/         FastAPI app, models, services, schemas
 ├── agents/          LangGraph state machine, nodes, prompts, tools
 ├── policies/        Policy engine (deterministic), schemas, tests
 ├── simulator/       Payment + communication simulator, generators
 ├── database/        Alembic migrations, demo seed
-├── frontend/        Next.js dashboard
+├── frontend/        Dashboard
 ├── tests/           Integration, e2e, red-team (25 safety tests)
 ├── docs/            Architecture docs
 ├── docker-compose.yml
 ├── .env.example
 ├── Makefile
 └── pyproject.toml
-```
 
----
+Security model
 
-## Security model
+No real payment credentials, card numbers, or banking data — ever
 
-- No real payment credentials, card numbers, or banking data — ever
-- All customer data synthetic (Faker-generated)
-- Policy Engine is deterministic, independently testable, zero LLM involvement
-- LLM output validated against Pydantic schema — malformed output rejected
-- All customer metadata treated as untrusted data (prompt injection defense)
-- Idempotency keys on all write endpoints
-- Append-only audit trail — no updates, no deletes
-- RBAC: MERCHANT_ADMIN, OPERATOR, AUDITOR, SYSTEM roles
-- Secrets via `.env` only — never committed, never logged
+All customer data synthetic (Faker-generated)
 
----
+Policy Engine is deterministic, independently testable, zero LLM involvement
 
-## Definition of done checklist
+LLM output validated against Pydantic schema — malformed output rejected
 
-See `docs/checklist.md` for the full §23 verification checklist.
+All customer metadata treated as untrusted data (prompt injection defense)
 
----
+Idempotency keys on all write endpoints
 
-## License
+Append-only audit trail — no updates, no deletes
 
-Built for Razorpay Buildathon 2026. All payment data is synthetic.
+RBAC: MERCHANT_ADMIN, OPERATOR, AUDITOR, SYSTEM roles
+
+Secrets via .env only — never committed, never logged
+
+Definition of done checklist
+
+See docs/checklist.md for the full verification checklist.
+
+License
+
+All payment data is synthetic.
