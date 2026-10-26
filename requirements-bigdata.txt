@@ -1,0 +1,3 @@
+# Optional dependencies for the local Spark ETL pipeline and its tests.
+# Apache Spark 3.5 supports Python 3.8+ and Java 8, 11, or 17.
+pyspark==3.5.8

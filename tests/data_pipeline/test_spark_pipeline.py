@@ -19,8 +19,9 @@ from pipeline.spark_pipeline import SparkBigDataPipeline  # noqa: E402
 
 
 @pytest.fixture(scope="module")
-def spark_pipeline():
-    pipeline = SparkBigDataPipeline()
+def spark_pipeline(tmp_path_factory):
+    output_dir = tmp_path_factory.mktemp("spark-pipeline-output")
+    pipeline = SparkBigDataPipeline(output_dir=output_dir)
     yield pipeline
     pipeline.spark.stop()
 
