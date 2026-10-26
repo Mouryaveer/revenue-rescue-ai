@@ -1,7 +1,7 @@
 {
   "dataset_version": "synthetic-payment-events.v1",
-  "source": "C:\\Users\\moury\\data",
-  "output": "C:\\Users\\moury\\Coding\\Projects\\Big-Data\\RevenueRescue AI\\data\\training",
+  "source": "synthetic_generator.v1",
+  "output": "data/training",
   "customers": 100000,
   "events": 100000,
   "split_counts": {

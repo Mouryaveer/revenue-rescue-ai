@@ -79,7 +79,7 @@ class MLScoringService:
 
             bundle = joblib.load(path)
             self._preprocessor = bundle["preprocessor"]
-            self._model = bundle["model"]
+            self._model = bundle.get("classifier") or bundle.get("model")
             self.model_version = bundle.get("model_version", "rr-lightgbm.v1")
             self.is_trained = True
             logger.info("ml_model_loaded_successfully", path=str(path), version=self.model_version)

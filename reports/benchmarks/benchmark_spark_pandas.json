@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-10-26T08:50:39Z",
+  "dataset": {
+    "filename": "payment_events.csv",
+    "bytes": 14890876,
+    "size_mb": 14.2,
+    "row_count": 100000
+  },
+  "system": {
+    "os": "Windows 10",
+    "python_version": "3.11.9",
+    "cpu_count_logical": 12,
+    "cpu_count_physical": 6,
+    "total_ram_gb": 15.73
+  },
+  "correctness": {
+    "row_counts_identical": true,
+    "aggregations_identical": true
+  },
+  "results": {
+    "pandas": {
+      "engine": "pandas",
+      "version": "2.2.3",
+      "input_rows": 100000,
+      "output_rows": 100000,
+      "cold_run_sec": 3.4142,
+      "warm_run_sec": 2.0542,
+      "approx_mem_mb": 53.99,
+      "aggregations": {
+        "CHECKOUT_ABANDONED": {
+          "total_events": 19752,
+          "recovered_events": 10745,
+          "recovery_rate": 0.5439955447549615
+        },
+        "FAILED_PAYMENT": {
+          "total_events": 54894,
+          "recovered_events": 35112,
+          "recovery_rate": 0.6396327467482785
+        },
+        "FAILED_SUBSCRIPTION": {
+          "total_events": 25354,
+          "recovered_events": 16134,
+          "recovery_rate": 0.6363492939970025
+        }
+      }
+    },
+    "pyspark": {
+      "engine": "pyspark",
+      "version": "4.2.0",
+      "input_rows": 100000,
+      "cold_run_sec": 21.938,
+      "warm_run_sec": 0.9518,
+      "aggregations": {
+        "CHECKOUT_ABANDONED": {
+          "total_events": 19752,
+          "recovered_events": 10745,
+          "recovery_rate": 0.544
+        },
+        "FAILED_PAYMENT": {
+          "total_events": 54894,
+          "recovered_events": 35112,
+          "recovery_rate": 0.6396
+        },
+        "FAILED_SUBSCRIPTION": {
+          "total_events": 25354,
+          "recovered_events": 16134,
+          "recovery_rate": 0.6364
+        }
+      }
+    }
+  },
+  "analysis": {
+    "scale_considerations": "On this 100,000-row (~15MB) dataset, single-node Pandas achieves lower latency because it operates directly in vectorized C/NumPy memory without Py4J bridge, JVM serialization, or cluster orchestration overhead. However, PySpark provides the horizontal scaling foundation required for Big Data: it enables partitioned Parquet storage, predicate pushdown, Spark SQL query optimization (Catalyst), and out-of-core distributed processing on datasets exceeding single-node RAM."
+  }
+}

@@ -59,7 +59,9 @@ revenue-rescue-ai/
 
 # Local run state, generated data and model artifacts (reproducible from notebooks)
 .run/
+hadoop/
 data/preprocessed/
+data/spark_processed/
 models/artifacts/
 
 # Miscellaneous scratch notes (not README or docs)

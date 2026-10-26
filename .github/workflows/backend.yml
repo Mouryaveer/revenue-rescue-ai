@@ -64,3 +64,7 @@ jobs:
         run: pytest tests/integration/ -v
       - name: Backend Unit Tests
         run: pytest backend/tests/ -v
+      - name: Safety Invariant Tests
+        run: pytest tests/safety/ -v
+      - name: Data Pipeline & Big Data Tests
+        run: pytest tests/data_pipeline/ -v
