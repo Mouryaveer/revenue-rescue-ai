@@ -7,7 +7,28 @@ deterministic nodes stay importable without any LLM dependency.
 
 from __future__ import annotations
 
-from agents.schemas.agent_schemas import AgentState, DiagnosisOutput, StrategyOutput
+import json
+import time
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
+
+import structlog
+from pydantic import BaseModel
+
+from agents.schemas.agent_schemas import (
+    AgentState,
+    DiagnosisOutput,
+    NodeExecutionRecord,
+    StrategyOutput,
+)
+
+logger = structlog.get_logger(__name__)
+
+SNAPSHOT_MAX_VALUE_BYTES = 4096
+NODE_ERROR_MAX_CHARS = 1024
+# Bookkeeping keys that are already recorded elsewhere; left out of output_snapshot.
+_SNAPSHOT_EXCLUDED_KEYS = frozenset({"node_trace", "node_observation_log"})
 
 
 def _add_trace(state: AgentState, node: str) -> dict:
@@ -15,6 +36,86 @@ def _add_trace(state: AgentState, node: str) -> dict:
     current = list(state.get("node_trace", []))
     current.append(node)
     return {"node_trace": current, "current_node": node}
+
+
+# ── Per-node observability ────────────────────────────────────────────────────
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, datetime):
+        return value.isoformat()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _sanitize_output(output: Any) -> dict | str:
+    """
+    JSON-safe snapshot of a node's return dict.
+
+    Only top-level keys are inspected. A key whose encoded value exceeds
+    SNAPSHOT_MAX_VALUE_BYTES becomes "[truncated]". If any top-level value cannot
+    be encoded, the whole snapshot is "[unserializable]".
+    """
+    if not isinstance(output, dict):
+        return "[unserializable]"
+    snapshot: dict = {}
+    try:
+        for key, value in output.items():
+            if key in _SNAPSHOT_EXCLUDED_KEYS:
+                continue
+            encoded = json.dumps(value, default=_json_default)
+            if len(encoded.encode("utf-8")) > SNAPSHOT_MAX_VALUE_BYTES:
+                snapshot[str(key)] = "[truncated]"
+            else:
+                snapshot[str(key)] = json.loads(encoded)
+    except (TypeError, ValueError, OverflowError):
+        return "[unserializable]"
+    return snapshot
+
+
+def _wrap_node(node_name: str, fn: Callable[[AgentState], dict]) -> Callable[[AgentState], dict]:
+    """
+    Wrap a graph node so each execution produces a NodeExecutionRecord.
+
+    The record is logged as "node_execution_record" and appended to
+    node_observation_log. node_trace is kept in the same order: if the node did
+    not append itself (e.g. replan), the wrapper does.
+    """
+
+    def wrapped(state: AgentState) -> dict:
+        record: NodeExecutionRecord = {
+            "node_name": node_name,
+            "run_id": state.get("agent_run_id"),
+            "started_at": _utc_now_iso(),
+        }
+        t0 = time.perf_counter()
+        try:
+            output = fn(state)
+        except Exception as exc:
+            record["finished_at"] = _utc_now_iso()
+            record["duration_ms"] = int((time.perf_counter() - t0) * 1000)
+            record["error"] = str(exc)[:NODE_ERROR_MAX_CHARS]
+            logger.info("node_execution_record", **record)
+            raise
+
+        record["finished_at"] = _utc_now_iso()
+        record["duration_ms"] = int((time.perf_counter() - t0) * 1000)
+        record["output_snapshot"] = _sanitize_output(output)
+        logger.info("node_execution_record", **record)
+
+        update = dict(output or {})
+        update["node_observation_log"] = [*state.get("node_observation_log", []), record]
+        if "node_trace" not in update:
+            update["node_trace"] = [*state.get("node_trace", []), node_name]
+        return update
+
+    wrapped.__name__ = f"observed_{node_name}"
+    return wrapped
 
 
 def _fallback_diagnosis(

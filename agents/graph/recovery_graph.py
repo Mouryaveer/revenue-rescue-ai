@@ -33,6 +33,7 @@ from agents.nodes.deterministic_nodes import (
 )
 from agents.nodes.llm_nodes import node_diagnosis, node_strategy
 from agents.nodes.llm_provider import LLMProvider, get_llm_provider
+from agents.nodes.node_utils import _wrap_node
 from agents.schemas.agent_schemas import AgentState
 from policies.engine.policy_engine import PolicyEngine
 from policies.schemas.policy_schema import PolicyConfig
@@ -102,18 +103,22 @@ def build_recovery_graph(
     exec_node = partial(node_action_execution, provider=provider)
     verify_node = partial(node_verification, provider=provider, verifier=verifier)
 
-    graph.add_node("risk_detection", node_risk_detection)
-    graph.add_node("context_builder", node_context_builder)
-    graph.add_node("diagnosis", diag_node)
-    graph.add_node("strategy", strat_node)
-    graph.add_node("policy_check", policy_node)
-    graph.add_node("action_execution", exec_node)
-    graph.add_node("observation", node_observation)
-    graph.add_node("verification", verify_node)
-    graph.add_node("escalation", node_escalation)
-    graph.add_node("completion", node_completion)
-    # Replan node: increments counter then routes back to strategy
-    graph.add_node("replan", increment_replan)
+    nodes = {
+        "risk_detection": node_risk_detection,
+        "context_builder": node_context_builder,
+        "diagnosis": diag_node,
+        "strategy": strat_node,
+        "policy_check": policy_node,
+        "action_execution": exec_node,
+        "observation": node_observation,
+        "verification": verify_node,
+        "escalation": node_escalation,
+        "completion": node_completion,
+        # Replan node: increments counter then routes back to strategy
+        "replan": increment_replan,
+    }
+    for name, fn in nodes.items():
+        graph.add_node(name, _wrap_node(name, fn))
 
     graph.set_entry_point("risk_detection")
 

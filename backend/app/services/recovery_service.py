@@ -297,7 +297,8 @@ class RecoveryService:
     ) -> None:
         """Write agent run results back to DB and audit trail. State is a dict (TypedDict)."""
         agent_run.run_status = "COMPLETED"
-        agent_run.node_trace = state.get("node_trace", [])
+        # Structured per-node records (JSONB). Older runs hold a flat list[str].
+        agent_run.node_trace = state.get("node_observation_log") or state.get("node_trace", [])
         strat = state.get("case_strategy")
         agent_run.llm_output = strat.model_dump() if strat else None
 

@@ -144,7 +144,20 @@ class AgentState(TypedDict, total=False):
 
     # Audit / tracing
     node_trace: list
+    node_observation_log: list  # list[NodeExecutionRecord], ordered by started_at
     llm_provider: str
+
+
+class NodeExecutionRecord(TypedDict, total=False):
+    """Structured record of one node execution within an agent run."""
+
+    node_name: str
+    run_id: str | None
+    started_at: str  # ISO 8601 UTC
+    finished_at: str  # ISO 8601 UTC
+    duration_ms: int
+    output_snapshot: dict | str  # sanitised top-level keys, or "[unserializable]"
+    error: str  # present only when the node raised
 
 
 def make_initial_state(
@@ -213,5 +226,6 @@ def make_initial_state(
         replan_count=0,
         max_replans=3,
         node_trace=[],
+        node_observation_log=[],
         llm_provider=llm_provider,
     )
