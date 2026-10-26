@@ -1,5 +1,20 @@
 # Implementation Plan: improve-architecture
 
+## Status (2026-10-26)
+
+Baseline before this work: 202 passed. After: 231 passed, 0 failures.
+
+| Phase | Status | Commit | Deviations from the plan below |
+|---|---|---|---|
+| 1 — Node split | Done | `6c2d26e` | `increment_replan` moved from `recovery_graph.py` to `deterministic_nodes.py`. No `__init__.py` re-exports (task 4 skipped; nothing imported from `agents.nodes`). |
+| 3 — Per-node logging | Done | `addda28` | Bookkeeping keys `node_trace`/`node_observation_log` are left out of `output_snapshot`. `replan` now appears in `node_trace` (it was missing before), so `node_trace` and the log always match. |
+| 2 — Async execution | Done | `3b2e4d3` | No new `agents/tasks/agent_tasks.py`: the existing `backend/app/tasks.py` task was changed to take `agent_run_id`, so `agents` does not depend on the backend's Celery app. Dispatch is configurable through `AGENT_EXECUTION_BACKEND` (`inline` default, `celery` in docker-compose); `inline` keeps the Render free tier working without Redis, and a failed enqueue falls back to inline. `max_retries=2` gives the 3 attempts total from Req 2.4. `ainvoke` uses `asyncio.to_thread` (Req 2.8 intent). |
+| 4 — Namespaced state | **On hold** | — | LangGraph replaces top-level keys on update, so returning `{"control": {...}}` would drop sibling fields unless each namespace gets a merge reducer. High churn for a readability gain; revisit separately. |
+
+Tasks 1–24 below keep their original wording. Checkboxes show what was done.
+
+## Original plan
+
 ## Overview
 
 Four self-contained phases, each corresponding to one requirement. Each phase ends with a full
@@ -13,42 +28,42 @@ modules, Phase 3 wraps the nodes, and Phase 4 restructures the state that all ph
 
 ### Phase 1 — Node Module Separation (Requirement 1)
 
-- [ ] 1. Create `agents/nodes/node_utils.py` with shared helpers
+- [x] 1. Create `agents/nodes/node_utils.py` with shared helpers
   - Move `_add_trace`, `_strategy_to_action_type`, `_fallback_diagnosis`, `_fallback_strategy` from `nodes.py`
   - Export all four from `node_utils.py`
   - _Requirements: 1.3_
 
-- [ ] 2. Create `agents/nodes/deterministic_nodes.py`
+- [x] 2. Create `agents/nodes/deterministic_nodes.py`
   - Move `node_risk_detection`, `node_context_builder`, `node_policy_check`, `node_action_execution`, `node_observation`, `node_verification`, `node_escalation`, `node_completion`, `increment_replan`
   - Import helpers from `node_utils`; do NOT import from `llm_nodes.py`
   - _Requirements: 1.2, 1.4_
 
-- [ ] 3. Create `agents/nodes/llm_nodes.py`
+- [x] 3. Create `agents/nodes/llm_nodes.py`
   - Move `node_diagnosis` and `node_strategy`
   - Import helpers from `node_utils`; do NOT import from `deterministic_nodes.py`
   - _Requirements: 1.1, 1.4_
 
 - [ ] 4. Update `agents/nodes/__init__.py` to re-export all nodes from new modules
 
-- [ ] 5. Update `agents/graph/recovery_graph.py` imports to reference new modules
+- [x] 5. Update `agents/graph/recovery_graph.py` imports to reference new modules
   - `node_diagnosis`, `node_strategy` from `agents.nodes.llm_nodes`
   - All other nodes from `agents.nodes.deterministic_nodes`
   - _Requirements: 1.6_
 
-- [ ] 6. Delete `agents/nodes/nodes.py`
+- [x] 6. Delete `agents/nodes/nodes.py`
   - _Requirements: 1.5_
 
-- [ ] 7. Run `python -m pytest agents/tests/ -q` — assert 0 new failures
+- [x] 7. Run `python -m pytest agents/tests/ -q` — assert 0 new failures
   - _Requirements: 1.8_
 
 ### Phase 2 — Async Agent Execution (Requirement 2)
 
-- [ ] 8. Add `async def ainvoke(self, initial_state: AgentState) -> AgentState` to `RecoveryAgent`
+- [x] 8. Add `async def ainvoke(self, initial_state: AgentState) -> AgentState` to `RecoveryAgent`
   - Validate `case_id` and `agent_run_id` present; raise `ValueError` if missing
   - Wrap `self._graph.invoke(initial_state)` in `asyncio.get_event_loop().run_in_executor(None, ...)`
   - _Requirements: 2.7, 2.8_
 
-- [ ] 9. Create `agents/tasks/agent_tasks.py` (Celery task)
+- [x] 9. Create `agents/tasks/agent_tasks.py` (Celery task)
   - `@celery_app.task(bind=True, max_retries=3)` function `run_recovery_agent_task`
   - On start: if `AgentRun.run_status != "RUNNING"`, return existing run ID without executing
   - Call `RecoveryAgent.ainvoke(initial_state)`
@@ -56,23 +71,23 @@ modules, Phase 3 wraps the nodes, and Phase 4 restructures the state that all ph
   - On exception: set `run_status="ERROR"`, persist `error` truncated to 2048 chars, retry ≤ 3×
   - _Requirements: 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 10. Update `RecoveryService.run_recovery_agent` to enqueue the Celery task
+- [x] 10. Update `RecoveryService.run_recovery_agent` to enqueue the Celery task
   - Create `AgentRun` with `run_status="RUNNING"` before enqueue
   - Call `run_recovery_agent_task.delay(...)` and return immediately
   - Remove inline synchronous `agent.run(initial_state)` call
   - _Requirements: 2.1, 2.6_
 
-- [ ] 11. Run `python -m pytest agents/tests/ backend/tests/ tests/integration/ -q` — assert 0 new failures
+- [x] 11. Run `python -m pytest agents/tests/ backend/tests/ tests/integration/ -q` — assert 0 new failures
 
 ### Phase 3 — Per-Node Structured Execution Logging (Requirement 3)
 
-- [ ] 12. Define `NodeExecutionRecord` TypedDict in `agents/schemas/agent_schemas.py`
+- [x] 12. Define `NodeExecutionRecord` TypedDict in `agents/schemas/agent_schemas.py`
   - Fields: `node_name`, `run_id`, `started_at`, `finished_at`, `duration_ms`, `output_snapshot`, `error`
 
-- [ ] 13. Add `node_observation_log: list` to `AgentState` and initialise to `[]` in `make_initial_state`
+- [x] 13. Add `node_observation_log: list` to `AgentState` and initialise to `[]` in `make_initial_state`
   - _Requirements: 3.7_
 
-- [ ] 14. Create `_wrap_node` helper in `node_utils.py`
+- [x] 14. Create `_wrap_node` helper in `node_utils.py`
   - Pre-call: record `node_name`, `started_at`, `run_id`
   - Post-call: `finished_at`, `duration_ms`, sanitise `output_snapshot` (truncate keys > 4096 bytes; `"[unserializable]"` on JSON failure)
   - On exception: set `error` (truncated to 1024 chars), re-raise
@@ -80,13 +95,13 @@ modules, Phase 3 wraps the nodes, and Phase 4 restructures the state that all ph
   - Append record to `state["node_observation_log"]` and node name to `state["node_trace"]`
   - _Requirements: 3.1–3.6, 3.9_
 
-- [ ] 15. Apply `_wrap_node` to all node calls in `build_recovery_graph`
+- [x] 15. Apply `_wrap_node` to all node calls in `build_recovery_graph`
   - _Requirements: 3.7_
 
-- [ ] 16. Update `RecoveryService._apply_agent_result` to persist `node_observation_log` to `AgentRun.node_trace`
+- [x] 16. Update `RecoveryService._apply_agent_result` to persist `node_observation_log` to `AgentRun.node_trace`
   - _Requirements: 3.8_
 
-- [ ] 17. Run `python -m pytest agents/tests/ backend/tests/ -q` — assert 0 new failures; verify `result.get("node_trace")` still returns `list[str]`
+- [x] 17. Run `python -m pytest agents/tests/ backend/tests/ -q` — assert 0 new failures; verify `result.get("node_trace")` still returns `list[str]`
 
 ### Phase 4 — Namespaced Agent State (Requirement 4)
 
