@@ -32,6 +32,8 @@ from app.services.scoring_service import RecoveryScoringService
 
 logger = structlog.get_logger(__name__)
 
+AGENT_RUN_ERROR_MAX_CHARS = 2048
+
 
 class RecoveryService:
     def __init__(self, db: AsyncSession) -> None:
@@ -207,23 +209,26 @@ class RecoveryService:
         return case
 
     async def run_recovery_agent(self, case_id: str) -> None:
+        """Start and execute an agent run in this session (synchronous-path helper)."""
+        agent_run_id = await self.start_agent_run(case_id)
+        if agent_run_id:
+            await self.execute_agent_run(agent_run_id)
+
+    async def start_agent_run(self, case_id: str) -> str | None:
         """
-        Execute the recovery agent for a case.
-        Called as a background task — handles its own error isolation.
+        Create an AgentRun with run_status RUNNING and return its id.
+        Returns None if the case does not exist or is already resolved.
+        The caller must commit before handing the id to another session/worker.
         """
         case = await self.get_case_by_id(case_id)
         if not case:
             logger.error("case_not_found_for_agent", case_id=case_id)
-            return
+            return None
 
         if case.is_recovered or case.is_stopped:
             logger.info("case_already_resolved", case_id=case_id)
-            return
+            return None
 
-        policy_svc = PolicyService(self._db)
-        policy_config = await policy_svc.get_active_policy_config()
-
-        # Create agent run record
         agent_run = AgentRun(
             recovery_case_id=case.id,
             llm_provider=settings.LLM_PROVIDER,
@@ -239,25 +244,54 @@ class RecoveryService:
             agent_run_id=str(agent_run.id),
             result="STARTED",
         )
+        return str(agent_run.id)
 
-        # Build initial state using make_initial_state helper
-        from agents.schemas.agent_schemas import make_initial_state
+    async def execute_agent_run(self, agent_run_id: str, *, final_attempt: bool = True) -> str:
+        """
+        Execute a previously started AgentRun and persist the result.
 
-        initial_state = make_initial_state(
-            case_id=case_id,
-            agent_run_id=str(agent_run.id),
-            event_type=case.scenario,
-            failure_reason=case.failure_reason,
-            amount_paise=case.amount_at_risk_paise,
-            currency=case.currency,
-            customer_id=str(case.customer_id),
-            retry_count=case.retry_count,
-            communication_count=case.communication_count,
-            case_is_recovered=case.is_recovered,
-            llm_provider=settings.LLM_PROVIDER,
-        )
+        Idempotent: a run whose status is no longer RUNNING is returned untouched.
+        On failure: if final_attempt, the run is marked ERROR and the error is
+        swallowed; otherwise the exception propagates so the caller can retry
+        (the run stays RUNNING). Returns the run's resulting status.
+        """
+        agent_run = await self._db.get(AgentRun, uuid.UUID(agent_run_id))
+        if agent_run is None:
+            logger.error("agent_run_not_found", agent_run_id=agent_run_id)
+            return "NOT_FOUND"
+        if agent_run.run_status != "RUNNING":
+            logger.info(
+                "agent_run_already_finished",
+                agent_run_id=agent_run_id,
+                run_status=agent_run.run_status,
+            )
+            return agent_run.run_status
+
+        case = await self._db.get(RecoveryCase, agent_run.recovery_case_id)
+        case_id = str(agent_run.recovery_case_id)
 
         try:
+            if case is None:
+                raise LookupError(f"Recovery case {case_id} not found")
+
+            policy_svc = PolicyService(self._db)
+            policy_config = await policy_svc.get_active_policy_config()
+
+            from agents.schemas.agent_schemas import make_initial_state
+
+            initial_state = make_initial_state(
+                case_id=case_id,
+                agent_run_id=agent_run_id,
+                event_type=case.scenario,
+                failure_reason=case.failure_reason,
+                amount_paise=case.amount_at_risk_paise,
+                currency=case.currency,
+                customer_id=str(case.customer_id),
+                retry_count=case.retry_count,
+                communication_count=case.communication_count,
+                case_is_recovered=case.is_recovered,
+                llm_provider=settings.LLM_PROVIDER,
+            )
             # Get the appropriate payment provider based on configuration
             payment_provider = get_payment_provider(
                 provider_name=settings.PAYMENT_PROVIDER,
@@ -276,21 +310,31 @@ class RecoveryService:
                 cloudflare_account_id=settings.CLOUDFLARE_ACCOUNT_ID,
                 cloudflare_api_token=settings.CLOUDFLARE_API_TOKEN,
             )
-            final_state = agent.run(initial_state)
+            final_state = await agent.ainvoke(initial_state)
             await self._apply_agent_result(case, agent_run, final_state)
+            return agent_run.run_status
 
         except Exception as e:
+            if not final_attempt:
+                logger.warning(
+                    "agent_run_attempt_failed_will_retry",
+                    case_id=case_id,
+                    agent_run_id=agent_run_id,
+                    error=str(e),
+                )
+                raise
             logger.error("agent_run_failed", case_id=case_id, error=str(e))
             agent_run.run_status = "ERROR"
-            agent_run.error = str(e)
+            agent_run.error = str(e)[:AGENT_RUN_ERROR_MAX_CHARS]
             await self._db.flush()
             await self._audit.record(
                 event_type=AuditEventType.AGENT_RUN_COMPLETED,
                 actor=ActorType.RECOVERY_AGENT,
                 recovery_case_id=case_id,
                 result="ERROR",
-                reason=str(e),
+                reason=agent_run.error,
             )
+            return agent_run.run_status
 
     async def _apply_agent_result(
         self, case: RecoveryCase, agent_run: AgentRun, state: Mapping[str, Any]

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.recovery import AuditEventResponse, RecoveryCaseDetail, RecoveryCaseSummary
+from app.services.agent_dispatch import dispatch_agent_run
 from app.services.recovery_service import RecoveryService
 
 router = APIRouter()
@@ -55,26 +56,8 @@ async def run_agent(
         raise HTTPException(status_code=404, detail="Recovery case not found")
     if case.is_recovered or case.is_stopped:
         return {"status": "NOOP", "message": "Case already resolved"}
-    background_tasks.add_task(_run_agent_task, case_id)
-    return {"status": "ACCEPTED", "message": "Agent run queued"}
-
-
-async def _run_agent_task(case_id: str) -> None:
-    """Runs in background with its own DB session."""
-    from app.core.database import AsyncSessionLocal
-
-    async with AsyncSessionLocal() as db:
-        try:
-            service = RecoveryService(db)
-            await service.run_recovery_agent(case_id)
-            await db.commit()
-        except Exception as e:
-            await db.rollback()
-            import structlog
-
-            structlog.get_logger(__name__).error(
-                "background_agent_failed", case_id=case_id, error=str(e)
-            )
+    agent_run_id = await dispatch_agent_run(db, case_id, background_tasks)
+    return {"status": "ACCEPTED", "message": "Agent run queued", "agent_run_id": agent_run_id}
 
 
 @router.post("/{case_id}/escalate", status_code=status.HTTP_200_OK)

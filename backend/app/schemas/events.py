@@ -79,3 +79,4 @@ class EventResponse(BaseModel):
     status: str
     message: str
     is_duplicate: bool = False
+    agent_run_id: str | None = None  # set when an agent run was started

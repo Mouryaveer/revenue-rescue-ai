@@ -52,6 +52,7 @@ services:
       - PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-simulator}
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
+      - AGENT_EXECUTION_BACKEND=${AGENT_EXECUTION_BACKEND:-celery}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --app-dir /app/backend
 
   worker:

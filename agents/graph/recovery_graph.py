@@ -14,6 +14,7 @@ All routing decisions are deterministic.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from functools import partial
 
@@ -176,3 +177,22 @@ class RecoveryAgent:
         )
         result = self._graph.invoke(initial_state)
         return result  # already a dict (TypedDict), no need to convert
+
+    async def ainvoke(self, initial_state: AgentState) -> AgentState:
+        """
+        Async entry point for production execution paths.
+
+        Nodes are synchronous and make blocking calls (LLM HTTP, payment provider),
+        so the graph runs in a worker thread rather than on the event loop.
+        asyncio.to_thread also copies contextvars, which keeps structlog context.
+        """
+        missing = [k for k in ("case_id", "agent_run_id") if not initial_state.get(k)]
+        if missing:
+            raise ValueError(f"initial_state missing required field(s): {', '.join(missing)}")
+        logger.info(
+            "agent_run_start",
+            case_id=initial_state.get("case_id"),
+            agent_run_id=initial_state.get("agent_run_id"),
+            mode="async",
+        )
+        return await asyncio.to_thread(self._graph.invoke, initial_state)

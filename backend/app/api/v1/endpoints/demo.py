@@ -168,12 +168,13 @@ async def run_demo_scenario(
         service = RecoveryService(db)
         case = await service.create_case_from_payment_failure(payment_event)
 
-    from app.api.v1.endpoints.events import _run_agent_background
+    from app.services.agent_dispatch import dispatch_agent_run
 
-    background_tasks.add_task(_run_agent_background, str(case.id))
+    agent_run_id = await dispatch_agent_run(db, str(case.id), background_tasks)
 
     return {
         "case_id": str(case.id),
+        "agent_run_id": agent_run_id,
         "scenario": scenario,
         "status": "RUNNING",
         "message": f"Demo scenario '{scenario['name']}' started",

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Where agent runs execute. "inline" uses FastAPI BackgroundTasks in the web
+    # process (works on Render free tier, no broker). "celery" enqueues to the
+    # Celery worker via REDIS_URL; if enqueueing fails the run falls back to inline.
+    AGENT_EXECUTION_BACKEND: Literal["inline", "celery"] = "inline"
+
     # Payment & Safety
     PAYMENT_PROVIDER: Literal["simulator", "razorpay_test", "disabled"] = "simulator"
     PAYMENT_MODE: Literal["simulation", "test", "live"] = "simulation"
