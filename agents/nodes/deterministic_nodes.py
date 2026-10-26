@@ -1,26 +1,20 @@
 """
-LangGraph node implementations.
-Each node is a pure function: AgentState (TypedDict) -> dict (partial update).
+Deterministic graph nodes (no LLM involvement).
+
+Each node is a function: AgentState (TypedDict) -> dict (partial update).
 LangGraph merges the returned dict into the state automatically.
-Only diagnosis and strategy nodes use the LLM. All others are deterministic.
+Imports helpers from node_utils only; never from llm_nodes or llm_provider.
 """
 
 from __future__ import annotations
 
-import json
-import time
 import uuid
 from datetime import UTC, datetime
 
 import structlog
 from app.providers.base import PaymentProvider, PaymentStatus
 
-from agents.nodes.llm_provider import LLMProvider
-from agents.prompts.system_prompt import (
-    DIAGNOSIS_PROMPT_TEMPLATE,
-    STRATEGY_PROMPT_TEMPLATE,
-    SYSTEM_PROMPT,
-)
+from agents.nodes.node_utils import _add_trace, _strategy_to_action_type
 from agents.schemas.agent_schemas import AgentState, DiagnosisOutput, StrategyOutput
 from policies.engine.policy_engine import AuthorizationContext, PolicyEngine
 from simulator.engine.recovery_verifier import RecoveryVerifier
@@ -28,14 +22,7 @@ from simulator.engine.recovery_verifier import RecoveryVerifier
 logger = structlog.get_logger(__name__)
 
 
-def _add_trace(state: AgentState, node: str) -> dict:
-    """Return a partial state update that appends to node_trace."""
-    current = list(state.get("node_trace", []))
-    current.append(node)
-    return {"node_trace": current, "current_node": node}
-
-
-# ── Node 1: Risk Detection (deterministic) ────────────────────────────────────
+# ── Node 1: Risk Detection ────────────────────────────────────────────────────
 
 
 def node_risk_detection(state: AgentState) -> dict:
@@ -60,7 +47,7 @@ def node_risk_detection(state: AgentState) -> dict:
     return trace
 
 
-# ── Node 2: Context Builder (deterministic) ───────────────────────────────────
+# ── Node 2: Context Builder ───────────────────────────────────────────────────
 
 
 def node_context_builder(state: AgentState) -> dict:
@@ -97,161 +84,7 @@ def node_context_builder(state: AgentState) -> dict:
         return trace
 
 
-# ── Node 3: Diagnosis (LLM or fallback) ───────────────────────────────────────
-
-
-def node_diagnosis(state: AgentState, llm: LLMProvider) -> dict:
-    trace = _add_trace(state, "diagnosis")
-    failure_reason = state.get("failure_reason", "UNKNOWN")
-    logger.info("node_diagnosis", case_id=state.get("case_id"), failure_reason=failure_reason)
-
-    prompt = DIAGNOSIS_PROMPT_TEMPLATE.format(
-        case_id=state.get("case_id"),
-        event_type=state.get("event_type"),
-        failure_reason=failure_reason,
-        amount_inr=(state.get("amount_paise") or 0) / 100,
-        customer_segment=state.get("customer_segment", "standard"),
-        customer_opted_out=state.get("customer_opted_out", False),
-        retry_count=state.get("retry_count", 0),
-        hours_since_last_attempt=state.get("hours_since_last_attempt"),
-        checkout_timeout_elapsed=state.get("checkout_timeout_elapsed", False),
-    )
-
-    # Append quantitative evidence context if available
-    ml_prob = state.get("ml_probability")
-    if ml_prob is not None:
-        ev_paise = state.get("ml_expected_value_paise") or 0
-        prompt += f"\nQuantitative Evidence:\n- LightGBM Probability: {ml_prob:.4f}\n- Expected Value: ₹{ev_paise / 100.0:.2f} INR\n"
-
-    t0 = time.perf_counter()
-    try:
-        from agents.nodes.llm_provider import clean_deepseek_reasoning_output, repair_json_string
-
-        raw = llm.complete(SYSTEM_PROMPT, prompt)
-        cleaned = clean_deepseek_reasoning_output(raw)
-        cleaned = repair_json_string(cleaned)
-        data = json.loads(cleaned)
-        diag = DiagnosisOutput(**data)
-    except Exception as e:
-        logger.warning("diagnosis_llm_failure", error=str(e), case_id=state.get("case_id"))
-        diag = _fallback_diagnosis(failure_reason, ml_probability=ml_prob)
-
-    elapsed = int((time.perf_counter() - t0) * 1000)
-    logger.info(
-        "diagnosis_complete",
-        case_id=state.get("case_id"),
-        confidence=diag.diagnosis_confidence,
-        latency_ms=elapsed,
-    )
-    return {**trace, "case_diagnosis": diag}
-
-
-def _fallback_diagnosis(
-    failure_reason: str, ml_probability: float | None = None
-) -> DiagnosisOutput:
-    strategy_map = {
-        "INSUFFICIENT_FUNDS": ("SCHEDULE_RETRY", 0.75),
-        "EXPIRED_METHOD": ("PAYMENT_METHOD_UPDATE", 0.60),
-        "GATEWAY_TEMPORARY": ("RETRY_NOW", 0.85),
-        "BANK_DECLINE": ("SCHEDULE_RETRY", 0.55),
-        "AUTH_FAILURE": ("REMINDER", 0.50),
-        "MANDATE_FAILURE": ("SCHEDULE_RETRY", 0.65),
-        "SUBSCRIPTION_GRACE": ("SCHEDULE_RETRY", 0.65),
-        "CHECKOUT_ABANDONED": ("CHECKOUT_RECOVERY", 0.55),
-        "UNKNOWN": ("ESCALATE", 0.20),
-    }
-    strategy, default_conf = strategy_map.get(failure_reason, ("ESCALATE", 0.20))
-    confidence = (
-        ml_probability if (ml_probability is not None and strategy != "ESCALATE") else default_conf
-    )
-    confidence = round(max(0.0, min(1.0, float(confidence))), 4)
-
-    return DiagnosisOutput(
-        diagnosis=f"fallback_{failure_reason.lower()}",
-        diagnosis_confidence=confidence,
-        failure_category=failure_reason,
-        likely_cause=f"Deterministic fallback for {failure_reason}",
-        is_recoverable=strategy != "ESCALATE",
-        recommended_strategy=strategy,
-        needs_human_review=failure_reason == "UNKNOWN",
-        notes="FALLBACK_MODE",
-    )
-
-
-# ── Node 4: Strategy (LLM or fallback) ───────────────────────────────────────
-
-
-def node_strategy(state: AgentState, llm: LLMProvider) -> dict:
-    trace = _add_trace(state, "strategy")
-    diag: DiagnosisOutput | None = state.get("case_diagnosis")
-    if not diag:
-        diag = _fallback_diagnosis(
-            state.get("failure_reason", "UNKNOWN"), state.get("ml_probability")
-        )
-
-    prompt = STRATEGY_PROMPT_TEMPLATE.format(
-        case_id=state.get("case_id"),
-        failure_category=diag.failure_category,
-        diagnosis=diag.diagnosis,
-        diagnosis_confidence=diag.diagnosis_confidence,
-        is_recoverable=diag.is_recoverable,
-        amount_inr=(state.get("amount_paise") or 0) / 100,
-        customer_segment=state.get("customer_segment", "standard"),
-        retry_count=state.get("retry_count", 0),
-        event_type=state.get("event_type"),
-    )
-
-    # Append quantitative evidence & rule-based timing recommendation
-    delay_recommendation = state.get("rule_retry_delay_hours")
-    if delay_recommendation is None:
-        delay_recommendation = 24
-    ml_prob = state.get("ml_probability")
-    if ml_prob is not None:
-        ev_paise = state.get("ml_expected_value_paise") or 0
-        prompt += (
-            f"\nQuantitative Inputs:\n"
-            f"- LightGBM Probability: {ml_prob:.4f}\n"
-            f"- Expected Value: ₹{ev_paise / 100.0:.2f} INR\n"
-            f"- Rule-based Recommended Retry Delay: {delay_recommendation} hours (subject to policy authorization)\n"
-        )
-
-    try:
-        from agents.nodes.llm_provider import clean_deepseek_reasoning_output, repair_json_string
-
-        raw = llm.complete(SYSTEM_PROMPT, prompt)
-        cleaned = clean_deepseek_reasoning_output(raw)
-        cleaned = repair_json_string(cleaned)
-        data = json.loads(cleaned)
-        strat = StrategyOutput(**data)
-        # Ensure requested action contains delay_hours for retry strategies if omitted
-        if "RETRY" in strat.recovery_strategy and "delay_hours" not in strat.requested_action:
-            strat.requested_action["delay_hours"] = delay_recommendation
-    except Exception as e:
-        logger.warning("strategy_llm_failure", error=str(e), case_id=state.get("case_id"))
-        strat = _fallback_strategy(
-            diag, state.get("amount_paise", 0), delay_hours=delay_recommendation
-        )
-
-    logger.info("strategy_proposed", case_id=state.get("case_id"), strategy=strat.recovery_strategy)
-    return {**trace, "case_strategy": strat}
-
-
-def _fallback_strategy(
-    diag: DiagnosisOutput, amount_paise: int, delay_hours: int = 24
-) -> StrategyOutput:
-    strategy = diag.recommended_strategy
-    delay = delay_hours if "RETRY" in strategy else 0
-    return StrategyOutput(
-        recovery_strategy=strategy,
-        reason=f"Deterministic fallback strategy for {diag.failure_category}",
-        requested_action={"type": strategy, "delay_hours": delay},
-        expected_recovery_paise=amount_paise if strategy != "ESCALATE" else 0,
-        confidence=diag.diagnosis_confidence,
-        fallback_strategy="ESCALATE",
-    )
-
-
-# ── Node 5: Policy Check (deterministic) ─────────────────────────────────────
+# ── Node 5: Policy Check ──────────────────────────────────────────────────────
 
 
 def node_policy_check(state: AgentState, policy_engine: PolicyEngine) -> dict:
@@ -293,18 +126,6 @@ def node_policy_check(state: AgentState, policy_engine: PolicyEngine) -> dict:
         policy_version=result.policy_version,
     )
     return {**trace, "policy_result": result.model_dump()}
-
-
-def _strategy_to_action_type(strategy: str) -> str:
-    return {
-        "RETRY_NOW": "retry_payment",
-        "SCHEDULE_RETRY": "schedule_retry",
-        "PAYMENT_METHOD_UPDATE": "request_payment_method_update",
-        "REMINDER": "send_payment_reminder",
-        "CHECKOUT_RECOVERY": "send_checkout_recovery",
-        "PROMISE_TO_PAY": "create_promise_to_pay",
-        "ESCALATE": "escalate_to_human",
-    }.get(strategy, "escalate_to_human")
 
 
 # ── Node 6: Action Execution (APPROVED actions only) ──────────────────────────
@@ -433,7 +254,7 @@ def node_observation(state: AgentState) -> dict:
     return trace
 
 
-# ── Node 8: Verification (deterministic) ─────────────────────────────────────
+# ── Node 8: Verification ──────────────────────────────────────────────────────
 
 
 def node_verification(
@@ -514,7 +335,7 @@ def node_verification(
         }
 
 
-# ── Node 9: Escalation (deterministic) ───────────────────────────────────────
+# ── Node 9: Escalation ────────────────────────────────────────────────────────
 
 
 def node_escalation(state: AgentState) -> dict:
@@ -548,3 +369,11 @@ def node_completion(state: AgentState) -> dict:
         nodes_visited=state.get("node_trace"),
     )
     return updates
+
+
+# ── Replan ────────────────────────────────────────────────────────────────────
+
+
+def increment_replan(state: AgentState) -> dict:
+    """Called when routing back to strategy — increments replan counter."""
+    return {"replan_count": (state.get("replan_count", 0)) + 1}

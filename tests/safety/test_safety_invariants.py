@@ -118,7 +118,7 @@ def test_safety_invariant_rejected_action_cannot_execute():
     """An action not approved by the policy engine must never execute."""
     from app.providers.simulator_provider import SimulatorPaymentProvider
 
-    from agents.nodes.nodes import node_action_execution
+    from agents.nodes.deterministic_nodes import node_action_execution
 
     state = {
         "case_id": "case-blocked",
@@ -133,7 +133,7 @@ def test_safety_invariant_rejected_action_cannot_execute():
 
 def test_safety_invariant_malformed_llm_output_triggers_fallback():
     """Garbage output from LLM never crashes or bypasses; triggers deterministic fallback."""
-    from agents.nodes.nodes import node_diagnosis
+    from agents.nodes.llm_nodes import node_diagnosis
 
     class GarbageProvider(ReasoningProvider):
         def complete(self, system_prompt: str, user_prompt: str) -> str:

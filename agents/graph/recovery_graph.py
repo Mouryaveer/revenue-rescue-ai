@@ -20,19 +20,19 @@ from functools import partial
 import structlog
 from app.providers.base import PaymentProvider
 
-from agents.nodes.llm_provider import LLMProvider, get_llm_provider
-from agents.nodes.nodes import (
+from agents.nodes.deterministic_nodes import (
+    increment_replan,
     node_action_execution,
     node_completion,
     node_context_builder,
-    node_diagnosis,
     node_escalation,
     node_observation,
     node_policy_check,
     node_risk_detection,
-    node_strategy,
     node_verification,
 )
+from agents.nodes.llm_nodes import node_diagnosis, node_strategy
+from agents.nodes.llm_provider import LLMProvider, get_llm_provider
 from agents.schemas.agent_schemas import AgentState
 from policies.engine.policy_engine import PolicyEngine
 from policies.schemas.policy_schema import PolicyConfig
@@ -81,11 +81,6 @@ def route_after_verification(state: AgentState) -> str:
         return "replan"
 
     return "escalation"
-
-
-def increment_replan(state: AgentState) -> dict:
-    """Called when routing back to strategy — increments replan counter."""
-    return {"replan_count": (state.get("replan_count", 0)) + 1}
 
 
 # ── Graph builder ──────────────────────────────────────────────────────────────

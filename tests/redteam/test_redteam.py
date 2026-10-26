@@ -233,7 +233,7 @@ def test_rt10_policy_engine_unavailable_fail_closed():
 # ── 11. Malformed LLM JSON → rejected, fallback used ─────────────────────────
 def test_rt11_malformed_llm_output_rejected():
     """Malformed LLM output must be rejected and deterministic fallback used."""
-    from agents.nodes.nodes import _fallback_diagnosis
+    from agents.nodes.node_utils import _fallback_diagnosis
 
     state = make_state(failure_reason="BANK_DECLINE")
     # New signature: _fallback_diagnosis(failure_reason: str)
@@ -248,7 +248,7 @@ def test_rt12_action_blocked_without_approval():
     """Action executor must NOT execute if policy_result.decision != APPROVED."""
     from app.providers.simulator_provider import SimulatorPaymentProvider
 
-    from agents.nodes.nodes import node_action_execution
+    from agents.nodes.deterministic_nodes import node_action_execution
 
     state = make_state()
     # Inject a DENIED policy result into the TypedDict state
@@ -328,7 +328,7 @@ def test_rt17b_invalid_amount_schema_rejected():
 # ── 18. Unknown failure reason → escalate, no fabricated diagnosis ─────────────
 def test_rt18_unknown_failure_no_fabrication():
     """UNKNOWN failure must produce low-confidence output and escalation recommendation."""
-    from agents.nodes.nodes import _fallback_diagnosis
+    from agents.nodes.node_utils import _fallback_diagnosis
 
     state = make_state(failure_reason="UNKNOWN")
     diag = _fallback_diagnosis(state.get("failure_reason", "UNKNOWN"))
