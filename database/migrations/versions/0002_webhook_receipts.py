@@ -1,13 +1,11 @@
 """Add provider webhook replay-protection receipts."""
 
-from typing import Sequence, Union
-
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0002_webhook_receipts"
-down_revision: Union[str, None] = "0001"
+down_revision: str | None = "0001"
 branch_labels = None
 depends_on = None
 

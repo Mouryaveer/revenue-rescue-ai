@@ -7,11 +7,10 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recovery import RecoveryCase
-from app.models.simulation import SimulationRun
 from app.schemas.recovery import MetricsOverview
 
 
@@ -19,9 +18,7 @@ class MetricsService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def compute_overview(
-        self, simulation_run_id: str | None = None
-    ) -> MetricsOverview:
+    async def compute_overview(self, simulation_run_id: str | None = None) -> MetricsOverview:
         q = select(RecoveryCase)
         if simulation_run_id:
             q = q.where(RecoveryCase.simulation_run_id == uuid.UUID(simulation_run_id))
@@ -56,11 +53,16 @@ class MetricsService:
             }
 
         # By failure reason
-        reasons = {}
+        reasons: dict[str, dict[str, int]] = {}
         for c in cases:
-            r = c.failure_reason
+            r = c.failure_reason.value
             if r not in reasons:
-                reasons[r] = {"total": 0, "recovered": 0, "revenue_at_risk": 0, "revenue_recovered": 0}
+                reasons[r] = {
+                    "total": 0,
+                    "recovered": 0,
+                    "revenue_at_risk": 0,
+                    "revenue_recovered": 0,
+                }
             reasons[r]["total"] += 1
             reasons[r]["revenue_at_risk"] += c.amount_at_risk_paise
             if c.is_recovered:
@@ -112,8 +114,6 @@ class MetricsService:
                 "policy_violations": baseline.policy_violations,
                 "total_cases": baseline.total_cases,
             },
-            "improvement_pct": round(
-                (ai.recovery_rate_pct - baseline.recovery_rate_pct), 2
-            ),
+            "improvement_pct": round((ai.recovery_rate_pct - baseline.recovery_rate_pct), 2),
             "note": "All numbers computed from real simulation data — not fabricated",
         }

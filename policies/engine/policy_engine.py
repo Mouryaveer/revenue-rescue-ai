@@ -48,7 +48,7 @@ class PolicyEngine:
     def policy(self) -> PolicyConfig:
         return self._policy
 
-    def authorize(self, context: "AuthorizationContext") -> PolicyEvaluationResult:
+    def authorize(self, context: AuthorizationContext) -> PolicyEvaluationResult:
         """
         Run the full sequential authorization pipeline.
         Returns a PolicyEvaluationResult — NEVER raises exceptions to callers.
@@ -57,7 +57,11 @@ class PolicyEngine:
         try:
             return self._run_pipeline(context)
         except PolicyEngineError as e:
-            logger.error("policy_engine_error", error=str(e), policy_id=getattr(self._policy, "policy_id", "unknown"))
+            logger.error(
+                "policy_engine_error",
+                error=str(e),
+                policy_id=getattr(self._policy, "policy_id", "unknown"),
+            )
             policy_id = getattr(self._policy, "policy_id", "unknown")
             version = getattr(self._policy, "version", 0)
             return PolicyEvaluationResult(
@@ -81,13 +85,15 @@ class PolicyEngine:
                 violations=["POLICY_ENGINE_UNEXPECTED_ERROR"],
             )
 
-    def _run_pipeline(self, ctx: "AuthorizationContext") -> PolicyEvaluationResult:
+    def _run_pipeline(self, ctx: AuthorizationContext) -> PolicyEvaluationResult:
         p = self._policy
         violations: list[str] = []
 
         # ── Step 1: Check stopping conditions (highest priority) ──────
         if ctx.case_is_recovered:
-            return self._stop("Case already RECOVERED — no further actions", "CASE_ALREADY_RECOVERED")
+            return self._stop(
+                "Case already RECOVERED — no further actions", "CASE_ALREADY_RECOVERED"
+            )
 
         if p.stopping.stop_on_payment_success and ctx.payment_already_succeeded:
             return self._stop("Payment already succeeded", "PAYMENT_ALREADY_SUCCEEDED")
@@ -120,7 +126,11 @@ class PolicyEngine:
                 )
 
         # ── Step 4: Communication limits ──────────────────────────────
-        if ctx.action_type in ("send_payment_reminder", "send_checkout_recovery", "change_communication_channel"):
+        if ctx.action_type in (
+            "send_payment_reminder",
+            "send_checkout_recovery",
+            "change_communication_channel",
+        ):
             if ctx.communication_count >= p.communication.max_messages_per_case:
                 return self._deny(
                     f"Communication count {ctx.communication_count} >= max "
@@ -154,7 +164,10 @@ class PolicyEngine:
                 )
 
         # ── Step 6: Timing rules ───────────────────────────────────────
-        if ctx.action_type in ("retry_payment", "schedule_retry") and ctx.hours_since_last_attempt is not None:
+        if (
+            ctx.action_type in ("retry_payment", "schedule_retry")
+            and ctx.hours_since_last_attempt is not None
+        ):
             if ctx.hours_since_last_attempt < p.limits.min_retry_interval_hours:
                 return self._deny(
                     f"Only {ctx.hours_since_last_attempt:.1f}h since last attempt; "
@@ -165,9 +178,16 @@ class PolicyEngine:
 
         # ── Step 7: Escalation triggers ───────────────────────────────
         if ctx.failure_reason == "UNKNOWN" and p.escalation.unknown_failure:
-            return self._escalate("Unknown failure reason — escalate for human review", "UNKNOWN_FAILURE_REASON", violations)
+            return self._escalate(
+                "Unknown failure reason — escalate for human review",
+                "UNKNOWN_FAILURE_REASON",
+                violations,
+            )
 
-        if ctx.diagnosis_confidence is not None and ctx.diagnosis_confidence < p.escalation.low_confidence_threshold:
+        if (
+            ctx.diagnosis_confidence is not None
+            and ctx.diagnosis_confidence < p.escalation.low_confidence_threshold
+        ):
             return self._escalate(
                 f"Diagnosis confidence {ctx.diagnosis_confidence:.2f} below threshold "
                 f"{p.escalation.low_confidence_threshold}",
@@ -208,7 +228,9 @@ class PolicyEngine:
 
     def _escalate(self, reason: str, code: str, violations: list[str]) -> PolicyEvaluationResult:
         violations.append(code)
-        logger.warning("policy_escalate", reason=reason, code=code, policy_id=self._policy.policy_id)
+        logger.warning(
+            "policy_escalate", reason=reason, code=code, policy_id=self._policy.policy_id
+        )
         return PolicyEvaluationResult(
             allowed=False,
             decision="ESCALATE",

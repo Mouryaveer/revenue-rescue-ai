@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
+from simulator.engine.payment_simulator import PaymentSimulator
 from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
 from simulator.generators.payment_generator import PaymentEvent
 
@@ -21,7 +21,7 @@ class BaselineResult:
     customer_id: str
     amount_paise: int
     failure_reason: str
-    outcome: str          # RECOVERED | FAILED | SKIPPED
+    outcome: str  # RECOVERED | FAILED | SKIPPED
     amount_recovered: int
     retry_count: int
 

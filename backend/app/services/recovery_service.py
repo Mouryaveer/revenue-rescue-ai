@@ -5,18 +5,16 @@ Wires: Event → RecoveryCase → AgentRun → AuditTrail → DB.
 
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from typing import Any
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from agents.graph.recovery_graph import RecoveryAgent
 from app.core.config import settings
-from app.providers.razorpay_test_provider import get_payment_provider
 from app.models.enums import (
     ActorType,
     AuditEventType,
@@ -25,6 +23,7 @@ from app.models.enums import (
     RecoveryScenario,
 )
 from app.models.recovery import AgentRun, RecoveryCase
+from app.providers.razorpay_test_provider import get_payment_provider
 from app.schemas.events import CheckoutAbandonedEvent, PaymentFailedEvent
 from app.schemas.recovery import RecoveryCaseDetail
 from app.services.audit_service import AuditService
@@ -73,18 +72,18 @@ class RecoveryService:
     async def _get_or_create_customer_id(self, customer_id_str: str) -> uuid.UUID:
         """Resolve customer_id string to a UUID, creating a synthetic customer stub if needed."""
         import hashlib
+
         from app.models.customer import Customer
 
         # Derive a deterministic UUID from the customer_id string
         try:
             cust_uuid = uuid.UUID(customer_id_str)
         except (ValueError, AttributeError):
-            cust_uuid = uuid.UUID(hashlib.md5(customer_id_str.encode()).hexdigest())
+            digest = hashlib.md5(customer_id_str.encode(), usedforsecurity=False).hexdigest()
+            cust_uuid = uuid.UUID(digest)
 
         # Check if customer exists
-        result = await self._db.execute(
-            select(Customer).where(Customer.id == cust_uuid)
-        )
+        result = await self._db.execute(select(Customer).where(Customer.id == cust_uuid))
         if result.scalar_one_or_none():
             return cust_uuid
 
@@ -93,9 +92,7 @@ class RecoveryService:
         email_hash = hashlib.sha256(email.encode()).hexdigest()
 
         # Avoid duplicate on email_hash
-        result2 = await self._db.execute(
-            select(Customer).where(Customer.email_hash == email_hash)
-        )
+        result2 = await self._db.execute(select(Customer).where(Customer.email_hash == email_hash))
         existing = result2.scalar_one_or_none()
         if existing:
             return existing.id
@@ -116,13 +113,16 @@ class RecoveryService:
     async def create_case_from_payment_failure(self, event: PaymentFailedEvent) -> RecoveryCase:
         try:
             from app.services.ml_scoring_service import MLScoringService
+
             ml_scorer = MLScoringService()
-            score = ml_scorer.get_recovery_score({
-                "event_type": "FAILED_PAYMENT",
-                "failure_reason": event.failure_reason,
-                "amount_paise": event.amount_paise,
-                "retry_count": 0,
-            })
+            score = ml_scorer.get_recovery_score(
+                {
+                    "event_type": "FAILED_PAYMENT",
+                    "failure_reason": event.failure_reason,
+                    "amount_paise": event.amount_paise,
+                    "retry_count": 0,
+                }
+            )
         except Exception:
             scorer = RecoveryScoringService()
             score = scorer.score(
@@ -157,16 +157,21 @@ class RecoveryService:
         )
         return case
 
-    async def create_case_from_checkout_abandonment(self, event: CheckoutAbandonedEvent) -> RecoveryCase:
+    async def create_case_from_checkout_abandonment(
+        self, event: CheckoutAbandonedEvent
+    ) -> RecoveryCase:
         try:
             from app.services.ml_scoring_service import MLScoringService
+
             ml_scorer = MLScoringService()
-            score = ml_scorer.get_recovery_score({
-                "event_type": "CHECKOUT_ABANDONED",
-                "failure_reason": "CHECKOUT_ABANDONED",
-                "amount_paise": event.amount_paise,
-                "retry_count": 0,
-            })
+            score = ml_scorer.get_recovery_score(
+                {
+                    "event_type": "CHECKOUT_ABANDONED",
+                    "failure_reason": "CHECKOUT_ABANDONED",
+                    "amount_paise": event.amount_paise,
+                    "retry_count": 0,
+                }
+            )
         except Exception:
             scorer = RecoveryScoringService()
             score = scorer.score(
@@ -218,8 +223,6 @@ class RecoveryService:
         policy_svc = PolicyService(self._db)
         policy_config = await policy_svc.get_active_policy_config()
 
-        agent_run_id = str(uuid.uuid4())
-
         # Create agent run record
         agent_run = AgentRun(
             recovery_case_id=case.id,
@@ -239,6 +242,7 @@ class RecoveryService:
 
         # Build initial state using make_initial_state helper
         from agents.schemas.agent_schemas import make_initial_state
+
         initial_state = make_initial_state(
             case_id=case_id,
             agent_run_id=str(agent_run.id),
@@ -265,7 +269,9 @@ class RecoveryService:
                 policy=policy_config,
                 llm_provider=settings.LLM_PROVIDER,
                 api_key=settings.OPENAI_API_KEY,
-                model=settings.REASONING_MODEL if settings.LLM_PROVIDER in ("cloudflare", "cloudflare_workers_ai") else settings.OPENAI_MODEL,
+                model=settings.REASONING_MODEL
+                if settings.LLM_PROVIDER in ("cloudflare", "cloudflare_workers_ai")
+                else settings.OPENAI_MODEL,
                 payment_provider=payment_provider,
                 cloudflare_account_id=settings.CLOUDFLARE_ACCOUNT_ID,
                 cloudflare_api_token=settings.CLOUDFLARE_API_TOKEN,
@@ -287,7 +293,7 @@ class RecoveryService:
             )
 
     async def _apply_agent_result(
-        self, case: RecoveryCase, agent_run: AgentRun, state: dict
+        self, case: RecoveryCase, agent_run: AgentRun, state: Mapping[str, Any]
     ) -> None:
         """Write agent run results back to DB and audit trail. State is a dict (TypedDict)."""
         agent_run.run_status = "COMPLETED"
@@ -347,7 +353,9 @@ class RecoveryService:
                 payload={"node_trace": state.get("node_trace", [])},
             )
         except Exception as audit_err:
-            logger.warning("audit_completion_record_failed", error=str(audit_err), case_id=str(case.id))
+            logger.warning(
+                "audit_completion_record_failed", error=str(audit_err), case_id=str(case.id)
+            )
 
     async def escalate_case(self, case_id: str, reason: str) -> None:
         case = await self.get_case_by_id(case_id)
@@ -367,6 +375,7 @@ class RecoveryService:
 
     async def get_audit_trail(self, case_id: str):
         from app.models.audit import AuditEvent
+
         result = await self._db.execute(
             select(AuditEvent)
             .where(AuditEvent.recovery_case_id == uuid.UUID(case_id))
@@ -378,7 +387,6 @@ class RecoveryService:
         case = await self.get_case_by_id(case_id)
         if not case:
             return None
-        audit = await self.get_audit_trail(case_id)
         return RecoveryCaseDetail(
             id=str(case.id),
             scenario=case.scenario,

@@ -8,8 +8,8 @@ import json
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -51,9 +51,11 @@ async def razorpay_webhook(
         raise HTTPException(status_code=400, detail="Malformed JSON payload") from exc
 
     receipt = ProviderWebhook(
-        provider="razorpay", event_id=x_razorpay_event_id,
+        provider="razorpay",
+        event_id=x_razorpay_event_id,
         event_type=x_razorpay_event or payload.get("event", "unknown"),
-        signature_valid=True, payload=payload,
+        signature_valid=True,
+        payload=payload,
     )
     try:
         db.add(receipt)
@@ -93,5 +95,7 @@ async def razorpay_webhook(
             )
         else:
             logger.info("razorpay_webhook_unmatched_order", event_id=x_razorpay_event_id)
-    logger.info("razorpay_webhook_received", event_id=x_razorpay_event_id, event_type=receipt.event_type)
+    logger.info(
+        "razorpay_webhook_received", event_id=x_razorpay_event_id, event_type=receipt.event_type
+    )
     return {"status": "ACCEPTED", "event_id": x_razorpay_event_id}

@@ -25,7 +25,14 @@ try:
 except ImportError:  # pragma: no cover - optional dependency is diagnosed at runtime
     razorpay = None
 
-from app.providers.base import OrderResult, PaymentProvider, PaymentResult, PaymentStatus, ProviderMode, RetryResult
+from app.providers.base import (
+    OrderResult,
+    PaymentProvider,
+    PaymentResult,
+    PaymentStatus,
+    ProviderMode,
+    RetryResult,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -48,7 +55,9 @@ class RazorpayTestProvider(PaymentProvider):
     def _validate_test_credentials(key_id: str, key_secret: str) -> None:
         """Hard check: reject any non-test credentials."""
         if not key_id or not key_secret:
-            raise ValueError("Razorpay credentials not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.")
+            raise ValueError(
+                "Razorpay credentials not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET."
+            )
         if not key_id.startswith("rzp_test_"):
             raise ValueError(
                 f"SAFETY: Razorpay key '{key_id[:12]}...' does not appear to be a test key. "
@@ -63,7 +72,9 @@ class RazorpayTestProvider(PaymentProvider):
                 raise ImportError
             return razorpay.Client(auth=(key_id, key_secret))
         except ImportError:
-            logger.warning("razorpay_sdk_not_installed", msg="Install razorpay package: pip install razorpay")
+            logger.warning(
+                "razorpay_sdk_not_installed", msg="Install razorpay package: pip install razorpay"
+            )
             return None
 
     @property
@@ -134,7 +145,7 @@ class RazorpayTestProvider(PaymentProvider):
             )
         except Exception as e:
             logger.error("razorpay_order_creation_failed", case_id=case_id, error=str(e))
-            raise ValueError(f"Failed to create Razorpay order: {str(e)}")
+            raise ValueError(f"Failed to create Razorpay order: {str(e)}") from e
 
     def retry_payment(
         self,
@@ -154,19 +165,25 @@ class RazorpayTestProvider(PaymentProvider):
         if not self._client:
             return self._unavailable_retry(idempotency_key)
         try:
-            order = self._client.order.create({
-                "amount": amount_paise,
-                "currency": currency,
-                "receipt": idempotency_key[:40],
-                "notes": {
-                    "case_id": case_id,
-                    "customer_id": customer_id,
-                    "environment": "TEST_MODE",
-                    "original_payment_id": original_payment_id,
-                },
-            })
-            logger.info("razorpay_test_order_created",
-                        order_id=order["id"], amount=amount_paise, case_id=case_id)
+            order = self._client.order.create(
+                {
+                    "amount": amount_paise,
+                    "currency": currency,
+                    "receipt": idempotency_key[:40],
+                    "notes": {
+                        "case_id": case_id,
+                        "customer_id": customer_id,
+                        "environment": "TEST_MODE",
+                        "original_payment_id": original_payment_id,
+                    },
+                }
+            )
+            logger.info(
+                "razorpay_test_order_created",
+                order_id=order["id"],
+                amount=amount_paise,
+                case_id=case_id,
+            )
             # Note: full payment capture requires frontend integration (Razorpay checkout)
             # For API-only test, order creation demonstrates the integration
             return RetryResult(
@@ -192,35 +209,43 @@ class RazorpayTestProvider(PaymentProvider):
     @staticmethod
     def _map_status(razorpay_status: str) -> PaymentStatus:
         return {
-            "captured":   PaymentStatus.SUCCESS,
+            "captured": PaymentStatus.SUCCESS,
             "authorized": PaymentStatus.PENDING,
-            "created":    PaymentStatus.PENDING,
-            "failed":     PaymentStatus.FAILED,
-            "refunded":   PaymentStatus.CANCELLED,
+            "created": PaymentStatus.PENDING,
+            "failed": PaymentStatus.FAILED,
+            "refunded": PaymentStatus.CANCELLED,
         }.get(razorpay_status, PaymentStatus.FAILED)
 
     @staticmethod
     def _unavailable(payment_id: str) -> PaymentResult:
         return PaymentResult(
-            payment_id=payment_id, status=PaymentStatus.FAILED,
-            amount_paise=0, currency="INR", provider=ProviderMode.RAZORPAY_TEST,
-            failure_reason="PROVIDER_UNAVAILABLE", is_synthetic=False,
+            payment_id=payment_id,
+            status=PaymentStatus.FAILED,
+            amount_paise=0,
+            currency="INR",
+            provider=ProviderMode.RAZORPAY_TEST,
+            failure_reason="PROVIDER_UNAVAILABLE",
+            is_synthetic=False,
         )
 
     @staticmethod
     def _unavailable_retry(idempotency_key: str) -> RetryResult:
         return RetryResult(
-            attempt_id=idempotency_key, payment_id="",
-            status=PaymentStatus.FAILED, amount_paise=0, currency="INR",
+            attempt_id=idempotency_key,
+            payment_id="",
+            status=PaymentStatus.FAILED,
+            amount_paise=0,
+            currency="INR",
             provider=ProviderMode.RAZORPAY_TEST,
-            failure_reason="PROVIDER_UNAVAILABLE", is_synthetic=False,
+            failure_reason="PROVIDER_UNAVAILABLE",
+            is_synthetic=False,
         )
 
 
 def get_payment_provider(
     provider_name: str = "simulator",
-    razorpay_key_id: str = "",
-    razorpay_key_secret: str = "",
+    razorpay_key_id: str | None = None,
+    razorpay_key_secret: str | None = None,
 ) -> PaymentProvider:
     """
     Factory — returns the correct PaymentProvider based on config.
@@ -228,10 +253,13 @@ def get_payment_provider(
     """
 
     if provider_name == "razorpay_test":
-        return RazorpayTestProvider(razorpay_key_id, razorpay_key_secret)
+        return RazorpayTestProvider(razorpay_key_id or "", razorpay_key_secret or "")
 
     if provider_name == "simulator":
         from app.providers.simulator_provider import SimulatorPaymentProvider
+
         return SimulatorPaymentProvider()
 
-    raise ValueError(f"Unknown payment provider: {provider_name}. Use 'simulator' or 'razorpay_test'.")
+    raise ValueError(
+        f"Unknown payment provider: {provider_name}. Use 'simulator' or 'razorpay_test'."
+    )

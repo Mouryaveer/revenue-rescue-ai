@@ -4,6 +4,7 @@ Never update or delete rows in this table.
 """
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -11,6 +12,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TimestampedModel
 from app.models.enums import ActorType, AuditEventType
+
+if TYPE_CHECKING:
+    from app.models.recovery import RecoveryCase
 
 
 class AuditEvent(TimestampedModel):
@@ -22,7 +26,9 @@ class AuditEvent(TimestampedModel):
 
     event_type: Mapped[AuditEventType] = mapped_column(String(100), nullable=False, index=True)
     actor: Mapped[ActorType] = mapped_column(String(100), nullable=False)
-    actor_id: Mapped[str | None] = mapped_column(String(255), nullable=True)  # user id or service id
+    actor_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # user id or service id
 
     # Financial fields
     transaction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -44,4 +50,6 @@ class AuditEvent(TimestampedModel):
     # Full event payload snapshot
     payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    recovery_case: Mapped["RecoveryCase | None"] = relationship("RecoveryCase", back_populates="audit_events")
+    recovery_case: Mapped["RecoveryCase | None"] = relationship(
+        "RecoveryCase", back_populates="audit_events"
+    )

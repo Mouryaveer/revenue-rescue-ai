@@ -10,7 +10,6 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import RecoveryCaseStatus
 from app.models.recovery import RecoveryCase
 
 
@@ -54,14 +53,11 @@ class RecoveryCaseRepository:
 
     async def count_by_status(self) -> dict[str, int]:
         result = await self._db.execute(
-            select(RecoveryCase.status, func.count(RecoveryCase.id))
-            .group_by(RecoveryCase.status)
+            select(RecoveryCase.status, func.count(RecoveryCase.id)).group_by(RecoveryCase.status)
         )
         return {row[0]: row[1] for row in result.all()}
 
-    async def total_recovered_paise(
-        self, simulation_run_id: str | None = None
-    ) -> int:
+    async def total_recovered_paise(self, simulation_run_id: str | None = None) -> int:
         q = select(func.coalesce(func.sum(RecoveryCase.amount_recovered_paise), 0)).where(
             RecoveryCase.is_recovered == True  # noqa: E712
         )
@@ -70,9 +66,7 @@ class RecoveryCaseRepository:
         result = await self._db.execute(q)
         return result.scalar_one() or 0
 
-    async def total_at_risk_paise(
-        self, simulation_run_id: str | None = None
-    ) -> int:
+    async def total_at_risk_paise(self, simulation_run_id: str | None = None) -> int:
         q = select(func.coalesce(func.sum(RecoveryCase.amount_at_risk_paise), 0))
         if simulation_run_id:
             q = q.where(RecoveryCase.simulation_run_id == uuid.UUID(simulation_run_id))

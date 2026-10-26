@@ -5,14 +5,11 @@ Revises: 0002_webhook_receipts
 Create Date: 2026-09-05
 """
 
-from typing import Sequence, Union
-
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision: str = "0003_provider_payment_fields"
-down_revision: Union[str, None] = "0002_webhook_receipts"
+down_revision: str | None = "0002_webhook_receipts"
 branch_labels = None
 depends_on = None
 
@@ -38,7 +35,9 @@ def upgrade() -> None:
 
     # Create indexes for the new unique fields
     op.create_index("ix_recovery_cases_razorpay_order_id", "recovery_cases", ["razorpay_order_id"])
-    op.create_index("ix_recovery_cases_razorpay_payment_id", "recovery_cases", ["razorpay_payment_id"])
+    op.create_index(
+        "ix_recovery_cases_razorpay_payment_id", "recovery_cases", ["razorpay_payment_id"]
+    )
 
 
 def downgrade() -> None:

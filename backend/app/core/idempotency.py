@@ -12,7 +12,9 @@ from __future__ import annotations
 import hashlib
 
 
-def make_idempotency_key(customer_id: str, amount_paise: int, failure_reason: str, extra: str = "") -> str:
+def make_idempotency_key(
+    customer_id: str, amount_paise: int, failure_reason: str, extra: str = ""
+) -> str:
     """
     Generate a deterministic idempotency key from event fields.
     Use this when the caller doesn't provide their own key.

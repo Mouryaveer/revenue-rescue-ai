@@ -2,10 +2,8 @@
 SimulationRun — tracks batch simulation experiment metadata for reproducibility.
 """
 
-import uuid
-
 from sqlalchemy import Boolean, Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TimestampedModel

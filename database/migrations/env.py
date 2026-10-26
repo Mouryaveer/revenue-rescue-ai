@@ -17,13 +17,13 @@ if str(_backend) not in sys.path:
 _db_url = os.environ.get("DATABASE_URL")
 
 from alembic import context
-from sqlalchemy import pool
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from app.core.database import Base
 
 # Import all models so autogenerate can detect them
 from app.models import *  # noqa: F401, F403
-from app.core.database import Base
+from sqlalchemy import pool
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 config = context.config
 if config.config_file_name is not None:

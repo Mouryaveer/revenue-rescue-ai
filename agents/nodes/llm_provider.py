@@ -24,7 +24,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 import structlog
@@ -51,7 +51,7 @@ class ReasoningResponse:
     model: str
     latency_ms: int
     error_code: ProviderErrorCode = ProviderErrorCode.NONE
-    error_message: Optional[str] = None
+    error_message: str | None = None
     fallback_used: bool = False
     token_usage: dict[str, int] = field(default_factory=dict)
 
@@ -183,8 +183,14 @@ class LocalDeterministicProvider(ReasoningProvider):
         needs_review = failure_reason == "UNKNOWN"
 
         # Check if quantitative ML probability was supplied in user prompt
-        prob_match = re.search(r"(?:LightGBM Probability|ML Recovery Probability):\s*([0-9.]+)", user_prompt)
-        confidence = float(prob_match.group(1)) if prob_match else default_conf
+        prob_match = re.search(
+            r"(?:LightGBM Probability|ML Recovery Probability):\s*([0-9.]+)", user_prompt
+        )
+        # A recovery probability is not evidence for an unknown failure cause.
+        # Keep escalated cases at the conservative rule-based confidence.
+        confidence = (
+            float(prob_match.group(1)) if prob_match and strategy != "ESCALATE" else default_conf
+        )
 
         # Extract amount if present
         amount_match = re.search(r"Amount.*?(?:INR|Paise)?:?\s*([0-9.]+)", user_prompt)
@@ -197,9 +203,8 @@ class LocalDeterministicProvider(ReasoningProvider):
                 amount_paise = 0
 
         # Diagnosis vs Strategy detection
-        is_strategy = (
-            "recovery_strategy" in user_prompt
-            or ("strategy" in user_prompt.lower() and "diagnosis" not in user_prompt.lower())
+        is_strategy = "recovery_strategy" in user_prompt or (
+            "strategy" in user_prompt.lower() and "diagnosis" not in user_prompt.lower()
         )
 
         if is_strategy:
@@ -247,7 +252,7 @@ class CloudflareWorkersAIProvider(ReasoningProvider):
         model: str = DEFAULT_MODEL,
         timeout_seconds: float = 30.0,
         max_tokens: int = 512,
-        fallback_provider: Optional[ReasoningProvider] = None,
+        fallback_provider: ReasoningProvider | None = None,
     ) -> None:
         self._account_id = account_id.strip()
         self._api_token = api_token.strip()
@@ -255,7 +260,9 @@ class CloudflareWorkersAIProvider(ReasoningProvider):
         self._timeout_seconds = timeout_seconds
         self._max_tokens = max_tokens
         self._fallback = fallback_provider or LocalDeterministicProvider()
-        self._endpoint = f"https://api.cloudflare.com/client/v4/accounts/{self._account_id}/ai/run/{self._model}"
+        self._endpoint = (
+            f"https://api.cloudflare.com/client/v4/accounts/{self._account_id}/ai/run/{self._model}"
+        )
 
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         """Call Cloudflare Workers AI with quota handling, bounded retry, and deterministic fallback."""
@@ -340,7 +347,9 @@ class CloudflareWorkersAIProvider(ReasoningProvider):
                         json.loads(cleaned)
                         return cleaned
                     except Exception:
-                        logger.warning("cloudflare_raw_output_invalid_json", raw_snippet=cleaned[:100])
+                        logger.warning(
+                            "cloudflare_raw_output_invalid_json", raw_snippet=cleaned[:100]
+                        )
                         return self._fallback.complete(system_prompt, user_prompt)
 
                 # Any other unexpected status code
@@ -356,10 +365,18 @@ class CloudflareWorkersAIProvider(ReasoningProvider):
                     logger.warning("cloudflare_network_timeout", attempt=attempt, error=str(exc))
                     time.sleep(1.0)
                     continue
-                logger.error("cloudflare_workers_ai_call_failed", error=str(exc), action="falling_back_to_deterministic")
+                logger.error(
+                    "cloudflare_workers_ai_call_failed",
+                    error=str(exc),
+                    action="falling_back_to_deterministic",
+                )
                 return self._fallback.complete(system_prompt, user_prompt)
             except Exception as exc:
-                logger.error("cloudflare_unhandled_exception", error=str(exc), action="falling_back_to_deterministic")
+                logger.error(
+                    "cloudflare_unhandled_exception",
+                    error=str(exc),
+                    action="falling_back_to_deterministic",
+                )
                 return self._fallback.complete(system_prompt, user_prompt)
 
         return self._fallback.complete(system_prompt, user_prompt)
@@ -389,16 +406,18 @@ class OpenAIProvider(ReasoningProvider):
             raw = response.choices[0].message.content or ""
             return clean_deepseek_reasoning_output(raw)
         except Exception as e:
-            logger.warning("openai_provider_error", error=str(e), action="falling_back_to_deterministic")
+            logger.warning(
+                "openai_provider_error", error=str(e), action="falling_back_to_deterministic"
+            )
             return self._fallback.complete(system_prompt, user_prompt)
 
 
 def get_llm_provider(
     provider: str = "deterministic",
-    api_key: str = "",
+    api_key: str | None = None,
     model: str = "",
     cloudflare_account_id: str = "",
-    cloudflare_api_token: str = "",
+    cloudflare_api_token: str | None = None,
 ) -> ReasoningProvider:
     """
     Factory function returning the configured reasoning provider.
@@ -406,15 +425,28 @@ def get_llm_provider(
     """
     provider_clean = (provider or "deterministic").lower()
 
-    try:
-        from app.core.config import settings
-    except Exception:
-        settings = None
+    def load_settings() -> Any:
+        try:
+            from app.core.config import settings
+
+            return settings
+        except Exception:
+            return None
+
+    app_settings = load_settings()
 
     if provider_clean in ("cloudflare", "cloudflare_workers_ai"):
-        account_id = cloudflare_account_id or (getattr(settings, "CLOUDFLARE_ACCOUNT_ID", "") if settings else "")
-        token = cloudflare_api_token or (getattr(settings, "CLOUDFLARE_API_TOKEN", "") if settings else "")
-        model_id = model or (getattr(settings, "REASONING_MODEL", CloudflareWorkersAIProvider.DEFAULT_MODEL) if settings else CloudflareWorkersAIProvider.DEFAULT_MODEL)
+        account_id = cloudflare_account_id or (
+            getattr(app_settings, "CLOUDFLARE_ACCOUNT_ID", "") if app_settings else ""
+        )
+        token = cloudflare_api_token or (
+            str(getattr(app_settings, "CLOUDFLARE_API_TOKEN", "") or "") if app_settings else ""
+        )
+        model_id = model or (
+            getattr(app_settings, "REASONING_MODEL", CloudflareWorkersAIProvider.DEFAULT_MODEL)
+            if app_settings
+            else CloudflareWorkersAIProvider.DEFAULT_MODEL
+        )
         return CloudflareWorkersAIProvider(
             account_id=account_id,
             api_token=token,
@@ -424,7 +456,9 @@ def get_llm_provider(
     if provider_clean == "openai" and api_key:
         return OpenAIProvider(api_key=api_key, model=model or "gpt-4o")
 
-    logger.info("using_local_deterministic_reasoning_provider", reason="zero-cost default or mock mode")
+    logger.info(
+        "using_local_deterministic_reasoning_provider", reason="zero-cost default or mock mode"
+    )
     return LocalDeterministicProvider()
 
 

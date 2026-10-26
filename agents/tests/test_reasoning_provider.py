@@ -12,13 +12,10 @@ Verifies:
 
 import json
 from unittest.mock import MagicMock, patch
-import httpx
-import pytest
 
 from agents.nodes.llm_provider import (
     CloudflareWorkersAIProvider,
     LocalDeterministicProvider,
-    MockProvider,
     clean_deepseek_reasoning_output,
     get_llm_provider,
     repair_json_string,
@@ -99,7 +96,9 @@ def test_cloudflare_provider_quota_exhaustion_falls_back():
     # Mock 429 Rate Limit / Quota Exhaustion
     mock_response = MagicMock()
     mock_response.status_code = 429
-    mock_response.text = '{"success": false, "errors": [{"message": "Daily quota of 10,000 neurons exceeded"}]}'
+    mock_response.text = (
+        '{"success": false, "errors": [{"message": "Daily quota of 10,000 neurons exceeded"}]}'
+    )
 
     with patch("httpx.Client.post", return_value=mock_response):
         user_prompt = "Failure Reason: BANK_DECLINE\nAmount: ₹1000.00"
@@ -118,7 +117,10 @@ def test_cloudflare_provider_missing_credentials_safe_fallback():
     user_prompt = "Failure Reason: INSUFFICIENT_FUNDS"
     raw = provider.complete("system", user_prompt)
     data = json.loads(raw)
-    assert data["failure_category"] == "INSUFFICIENT_FUNDS" or data["recovery_strategy"] == "SCHEDULE_RETRY"
+    assert (
+        data["failure_category"] == "INSUFFICIENT_FUNDS"
+        or data["recovery_strategy"] == "SCHEDULE_RETRY"
+    )
 
 
 def test_get_llm_provider_default_deterministic():

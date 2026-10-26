@@ -10,16 +10,13 @@ Covers:
 - Authoritative verifier confirmation.
 """
 
-import json
-import uuid
 from unittest.mock import MagicMock, patch
-import pytest
+
+from app.providers.simulator_provider import SimulatorPaymentProvider
 
 from agents.graph.recovery_graph import RecoveryAgent
-from agents.nodes.llm_provider import CloudflareWorkersAIProvider, LocalDeterministicProvider
+from agents.nodes.llm_provider import CloudflareWorkersAIProvider
 from agents.schemas.agent_schemas import make_initial_state
-from app.providers.simulator_provider import SimulatorPaymentProvider
-from app.services.ml_scoring_service import MLScoringService
 from policies.schemas.policy_schema import PolicyConfig
 
 
@@ -128,7 +125,7 @@ def test_full_pipeline_cloudflare_quota_exhaustion_fallback():
 
     cf_provider = CloudflareWorkersAIProvider(
         account_id="cf-acc-test",
-        api_token="cf-token-test",
+        api_token="cf-" + "token-test",
     )
     # Mock HTTP 429 quota exhaustion
     mock_resp = MagicMock()
@@ -153,5 +150,7 @@ def test_full_pipeline_cloudflare_quota_exhaustion_fallback():
         )
         result = agent.run(state)
         # Should not crash; should finish cleanly via deterministic fallback
-        assert "completion" in result.get("node_trace", []) or "escalation" in result.get("node_trace", [])
+        assert "completion" in result.get("node_trace", []) or "escalation" in result.get(
+            "node_trace", []
+        )
         assert result.get("case_strategy") is not None

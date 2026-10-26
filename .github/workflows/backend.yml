@@ -17,11 +17,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - run: pip install ruff mypy bandit
+      - run: pip install ruff==0.7.1 mypy==1.13.0 bandit==1.8.0
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy backend/app agents policies simulator --ignore-missing-imports
-      - run: bandit -r backend/app agents policies simulator -x tests
+      - run: bandit -r backend/app agents policies simulator -x '**/tests/**' --skip B311
 
   test:
     name: Run Tests

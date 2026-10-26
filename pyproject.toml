@@ -14,12 +14,23 @@ addopts = "-v --tb=short"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "T20"]
-ignore = ["S101", "S311", "B008", "A002"]
+extend-exclude = ["Notebooks"]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "T20"]
+ignore = ["S101", "S311", "B008", "A002", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
 "*/tests/*" = ["S", "T20"]
 "*/seed/*"  = ["T20"]
+"backend/app/models/*.py" = ["F821"]
+"scripts/train_lightgbm.py" = ["N806", "T201"]
+"scripts/check_db.py" = ["T201"]
+"scripts/export_training_csvs.py" = ["T201"]
+"database/migrations/env.py" = ["E402"]
+"pipeline/pandas_preprocessor.py" = ["T201"]
+"pipeline/spark_pipeline.py" = ["E402", "N812", "T201"]
+"scripts/benchmark_spark_pandas.py" = ["E402", "T201", "W291"]
 
 [tool.mypy]
 python_version = "3.12"

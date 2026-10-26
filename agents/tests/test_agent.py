@@ -4,11 +4,10 @@ Tests the full LangGraph pipeline using MockProvider (no API key needed).
 State is now TypedDict — access via result["key"] or result.get("key").
 """
 
-import pytest
+from app.providers.simulator_provider import SimulatorPaymentProvider
 
 from agents.graph.recovery_graph import RecoveryAgent
 from agents.schemas.agent_schemas import make_initial_state
-from app.providers.simulator_provider import SimulatorPaymentProvider
 from policies.schemas.policy_schema import PolicyConfig
 
 
@@ -17,18 +16,18 @@ def default_policy() -> PolicyConfig:
 
 
 def make_state(**overrides):
-    defaults = dict(
-        case_id="case-001",
-        agent_run_id="run-001",
-        event_type="FAILED_PAYMENT",
-        failure_reason="INSUFFICIENT_FUNDS",
-        amount_paise=299900,
-        customer_id="cust-001",
-        customer_segment="standard",
-        customer_opted_out=False,
-        customer_suspended=False,
-        llm_provider="mock",
-    )
+    defaults = {
+        "case_id": "case-001",
+        "agent_run_id": "run-001",
+        "event_type": "FAILED_PAYMENT",
+        "failure_reason": "INSUFFICIENT_FUNDS",
+        "amount_paise": 299900,
+        "customer_id": "cust-001",
+        "customer_segment": "standard",
+        "customer_opted_out": False,
+        "customer_suspended": False,
+        "llm_provider": "mock",
+    }
     defaults.update(overrides)
     return make_initial_state(**defaults)
 
@@ -37,11 +36,12 @@ def make_agent(seed: int = 42) -> RecoveryAgent:
     return RecoveryAgent(
         policy=default_policy(),
         llm_provider="mock",
-        payment_provider=SimulatorPaymentProvider(seed=seed)
+        payment_provider=SimulatorPaymentProvider(seed=seed),
     )
 
 
 # ── Basic completion ───────────────────────────────────────────────────────────
+
 
 def test_agent_runs_to_completion():
     result = make_agent().run(make_state())
@@ -61,8 +61,13 @@ def test_agent_produces_strategy():
     strat = result.get("case_strategy")
     assert strat is not None
     assert strat.recovery_strategy in (
-        "RETRY_NOW", "SCHEDULE_RETRY", "PAYMENT_METHOD_UPDATE",
-        "REMINDER", "CHECKOUT_RECOVERY", "PROMISE_TO_PAY", "ESCALATE"
+        "RETRY_NOW",
+        "SCHEDULE_RETRY",
+        "PAYMENT_METHOD_UPDATE",
+        "REMINDER",
+        "CHECKOUT_RECOVERY",
+        "PROMISE_TO_PAY",
+        "ESCALATE",
     )
 
 
@@ -88,6 +93,7 @@ def test_recovery_or_completion_terminal():
 
 # ── Gateway temporary — high success rate ─────────────────────────────────────
 
+
 def test_gateway_temporary_often_recovers():
     successes = 0
     for seed in range(30):
@@ -100,6 +106,7 @@ def test_gateway_temporary_often_recovers():
 
 
 # ── Policy denial paths ────────────────────────────────────────────────────────
+
 
 def test_opted_out_customer_case_stopped():
     result = make_agent().run(make_state(customer_opted_out=True))
@@ -131,13 +138,16 @@ def test_already_recovered_stopped_immediately():
 
 # ── Checkout abandonment ───────────────────────────────────────────────────────
 
+
 def test_checkout_abandonment_runs():
-    result = make_agent().run(make_state(
-        event_type="CHECKOUT_ABANDONMENT",
-        failure_reason="CHECKOUT_ABANDONED",
-        amount_paise=349900,
-        checkout_timeout_elapsed=True,
-    ))
+    result = make_agent().run(
+        make_state(
+            event_type="CHECKOUT_ABANDONMENT",
+            failure_reason="CHECKOUT_ABANDONED",
+            amount_paise=349900,
+            checkout_timeout_elapsed=True,
+        )
+    )
     diag = result.get("case_diagnosis")
     assert diag is not None
     assert diag.failure_category == "CHECKOUT_ABANDONED"
@@ -145,18 +155,21 @@ def test_checkout_abandonment_runs():
 
 
 def test_checkout_opted_out_blocked():
-    result = make_agent().run(make_state(
-        event_type="CHECKOUT_ABANDONMENT",
-        failure_reason="CHECKOUT_ABANDONED",
-        amount_paise=349900,
-        checkout_timeout_elapsed=True,
-        customer_opted_out=True,
-    ))
+    result = make_agent().run(
+        make_state(
+            event_type="CHECKOUT_ABANDONMENT",
+            failure_reason="CHECKOUT_ABANDONED",
+            amount_paise=349900,
+            checkout_timeout_elapsed=True,
+            customer_opted_out=True,
+        )
+    )
     assert not result.get("case_is_recovered")
     assert result.get("case_is_stopped")
 
 
 # ── Unknown failure ────────────────────────────────────────────────────────────
+
 
 def test_unknown_failure_escalated():
     result = make_agent().run(make_state(failure_reason="UNKNOWN"))
@@ -165,28 +178,43 @@ def test_unknown_failure_escalated():
 
 # ── Fallback mode ─────────────────────────────────────────────────────────────
 
+
 def test_fallback_produces_valid_structured_output():
-    from agents.nodes.llm_provider import MockProvider
     import json
-    output = MockProvider().complete("system", "Failure Reason: INSUFFICIENT_FUNDS diagnosis_confidence")
+
+    from agents.nodes.llm_provider import MockProvider
+
+    output = MockProvider().complete(
+        "system", "Failure Reason: INSUFFICIENT_FUNDS diagnosis_confidence"
+    )
     data = json.loads(output)
     assert "diagnosis_confidence" in data
     assert "failure_category" in data
 
 
 def test_fallback_produces_strategy_output():
-    from agents.nodes.llm_provider import MockProvider
     import json
-    output = MockProvider().complete("system", "Failure Reason: GATEWAY_TEMPORARY recovery_strategy")
+
+    from agents.nodes.llm_provider import MockProvider
+
+    output = MockProvider().complete(
+        "system", "Failure Reason: GATEWAY_TEMPORARY recovery_strategy"
+    )
     data = json.loads(output)
     assert "recovery_strategy" in data
     assert data["recovery_strategy"] in (
-        "RETRY_NOW", "SCHEDULE_RETRY", "PAYMENT_METHOD_UPDATE",
-        "REMINDER", "CHECKOUT_RECOVERY", "PROMISE_TO_PAY", "ESCALATE"
+        "RETRY_NOW",
+        "SCHEDULE_RETRY",
+        "PAYMENT_METHOD_UPDATE",
+        "REMINDER",
+        "CHECKOUT_RECOVERY",
+        "PROMISE_TO_PAY",
+        "ESCALATE",
     )
 
 
 # ── Node trace integrity ───────────────────────────────────────────────────────
+
 
 def test_node_trace_always_starts_with_risk_detection():
     result = make_agent().run(make_state())

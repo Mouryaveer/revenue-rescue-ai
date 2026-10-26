@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from faker import Faker
 
@@ -17,10 +17,10 @@ from faker import Faker
 class SyntheticCustomer:
     customer_id: str
     name: str
-    email_display: str          # synthetic email — not real
-    email_hash: str             # sha256 of synthetic email
+    email_display: str  # synthetic email — not real
+    email_hash: str  # sha256 of synthetic email
     phone_display: str
-    segment: str                # standard | premium | enterprise | at_risk
+    segment: str  # standard | premium | enterprise | at_risk
     country: str
     opted_out_communication: bool
     opted_out_email: bool
@@ -29,7 +29,7 @@ class SyntheticCustomer:
     total_transactions: int
     successful_transactions: int
     failed_transactions: int
-    lifetime_value_paise: int   # in paise
+    lifetime_value_paise: int  # in paise
     is_synthetic: bool = True
 
 
@@ -56,7 +56,9 @@ class CustomerGenerator:
         segment = rng.choice(SEGMENTS)
 
         total_txn = rng.randint(1, 50)
-        success_rate = {"standard": 0.85, "premium": 0.92, "enterprise": 0.95, "at_risk": 0.60}[segment]
+        success_rate = {"standard": 0.85, "premium": 0.92, "enterprise": 0.95, "at_risk": 0.60}[
+            segment
+        ]
         successful = round(total_txn * success_rate)
         failed = total_txn - successful
         ltv = successful * rng.randint(50000, 500000)  # paise per txn

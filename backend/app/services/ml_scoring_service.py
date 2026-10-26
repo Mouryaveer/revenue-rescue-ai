@@ -12,10 +12,9 @@ Responsibilities:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any, Optional
-import numpy as np
+from typing import Any
+
 import pandas as pd
 import structlog
 
@@ -39,9 +38,11 @@ FEATURE_COLUMNS = [
 
 
 class MLScoringService:
-    def __init__(self, model_path: Optional[str] = None) -> None:
+    def __init__(self, model_path: str | None = None) -> None:
         self._fallback_scorer = RecoveryScoringService()
-        self.model_path = model_path or getattr(settings, "LIGHTGBM_MODEL_PATH", "models/artifacts/lightgbm_recovery_model.joblib")
+        self.model_path = model_path or getattr(
+            settings, "LIGHTGBM_MODEL_PATH", "models/artifacts/lightgbm_recovery_model.joblib"
+        )
         self.is_trained: bool = False
         self.model_version: str = "none"
         self._preprocessor = None
@@ -50,7 +51,7 @@ class MLScoringService:
 
     def _load_model(self) -> None:
         """Attempt to load trained LightGBM bundle. Never raise on missing or corrupt artifact."""
-        path = Path(self.model_path)
+        path = Path(self.model_path or "models/artifacts/lightgbm_recovery_model.joblib")
         if not path.is_absolute():
             # Resolve relative to repo root or backend parent
             repo_root = Path(__file__).resolve().parents[3]
@@ -64,13 +65,18 @@ class MLScoringService:
                     path = candidate_backend
 
         if not path.exists():
-            logger.info("ml_model_artifact_not_found", path=str(path), fallback_mode="deterministic_heuristic")
+            logger.info(
+                "ml_model_artifact_not_found",
+                path=str(path),
+                fallback_mode="deterministic_heuristic",
+            )
             self.is_trained = False
             self.model_version = "not_trained_fallback"
             return
 
         try:
             import joblib
+
             bundle = joblib.load(path)
             self._preprocessor = bundle["preprocessor"]
             self._model = bundle["model"]
@@ -78,7 +84,12 @@ class MLScoringService:
             self.is_trained = True
             logger.info("ml_model_loaded_successfully", path=str(path), version=self.model_version)
         except Exception as e:
-            logger.warning("ml_model_load_failed", path=str(path), error=str(e), fallback_mode="deterministic_heuristic")
+            logger.warning(
+                "ml_model_load_failed",
+                path=str(path),
+                error=str(e),
+                fallback_mode="deterministic_heuristic",
+            )
             self.is_trained = False
             self.model_version = "load_error_fallback"
 
@@ -196,7 +207,9 @@ class MLScoringService:
         return {
             "model_version": self.model_version,
             "is_trained_model": self.is_trained,
-            "scoring_mode": "lightgbm_tabular" if self.is_trained else "deterministic_heuristic_fallback",
+            "scoring_mode": "lightgbm_tabular"
+            if self.is_trained
+            else "deterministic_heuristic_fallback",
             "recovery_probability": prob,
             "recovery_score": score,
             "amount_at_risk_paise": amount_paise,

@@ -4,13 +4,12 @@ import hashlib
 import hmac
 
 import pytest
-from pydantic import ValidationError
-
 from app.api.v1.endpoints.razorpay_checkout import (
     CreateOrderRequest,
     VerifyPaymentRequest,
     checkout_signature,
 )
+from pydantic import ValidationError
 
 
 def test_checkout_signature_matches_razorpay_construction() -> None:
@@ -19,15 +18,22 @@ def test_checkout_signature_matches_razorpay_construction() -> None:
         b"order_test|pay_test",
         hashlib.sha256,
     ).hexdigest()
-    assert checkout_signature(
-        order_id="order_test", payment_id="pay_test", secret="test-secret"
-    ) == expected
+    assert (
+        checkout_signature(order_id="order_test", payment_id="pay_test", secret="test-secret")
+        == expected
+    )
 
 
 def test_checkout_signature_changes_when_either_provider_id_changes() -> None:
-    signature = checkout_signature(order_id="order_test", payment_id="pay_test", secret="test-secret")
-    assert signature != checkout_signature(order_id="other", payment_id="pay_test", secret="test-secret")
-    assert signature != checkout_signature(order_id="order_test", payment_id="other", secret="test-secret")
+    signature = checkout_signature(
+        order_id="order_test", payment_id="pay_test", secret="test-secret"
+    )
+    assert signature != checkout_signature(
+        order_id="other", payment_id="pay_test", secret="test-secret"
+    )
+    assert signature != checkout_signature(
+        order_id="order_test", payment_id="other", secret="test-secret"
+    )
 
 
 def test_order_request_is_case_bound() -> None:

@@ -3,8 +3,6 @@ SimulatorPaymentProvider unit tests.
 Tests provider-based independent verification behavior.
 """
 
-import pytest
-
 from app.providers.base import PaymentStatus
 from app.providers.simulator_provider import SimulatorPaymentProvider
 

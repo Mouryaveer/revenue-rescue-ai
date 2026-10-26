@@ -5,10 +5,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +29,7 @@ def checkout_signature(*, order_id: str, payment_id: str, secret: str) -> str:
     """Build the server-side Checkout HMAC; secrets never leave this function."""
     return hmac.new(
         secret.encode("utf-8"),
-        f"{order_id}|{payment_id}".encode("utf-8"),
+        f"{order_id}|{payment_id}".encode(),
         hashlib.sha256,
     ).hexdigest()
 
@@ -87,7 +87,11 @@ async def _reconcile_captured_payment(
         payment = provider.get_payment(payment_id)
     except Exception as exc:
         logger.error("provider_verification_failed", case_id=str(case.id), error=str(exc))
-        return VerifyPaymentResponse(status="verification_failed", case_id=str(case.id), message="Provider verification failed")
+        return VerifyPaymentResponse(
+            status="verification_failed",
+            case_id=str(case.id),
+            message="Provider verification failed",
+        )
 
     raw = payment.raw or {}
     if raw.get("order_id") != order_id:
@@ -105,7 +109,7 @@ async def _reconcile_captured_payment(
 
     case.razorpay_payment_id = payment_id
     case.provider_payment_status = str(raw.get("status", "captured"))
-    case.provider_payment_timestamp = datetime.now(timezone.utc)
+    case.provider_payment_timestamp = datetime.now(UTC)
     case.amount_recovered_paise = payment.amount_paise
     case.status = RecoveryCaseStatus.RECOVERED
     case.is_recovered = True
@@ -165,11 +169,16 @@ async def create_order(
     case = result.scalar_one_or_none()
     if case is None:
         raise HTTPException(status_code=404, detail="Recovery case not found")
-    if case.status in {
-        RecoveryCaseStatus.RECOVERED,
-        RecoveryCaseStatus.STOPPED,
-        RecoveryCaseStatus.ESCALATED,
-    } or case.is_recovered or case.is_stopped:
+    if (
+        case.status
+        in {
+            RecoveryCaseStatus.RECOVERED,
+            RecoveryCaseStatus.STOPPED,
+            RecoveryCaseStatus.ESCALATED,
+        }
+        or case.is_recovered
+        or case.is_stopped
+    ):
         raise HTTPException(status_code=409, detail="Recovery case is terminal")
     if case.razorpay_order_id:
         return CreateOrderResponse(
@@ -220,16 +229,21 @@ async def verify_payment(
         raise HTTPException(status_code=503, detail="Razorpay Test Mode is not configured")
 
     result = await db.execute(
-        select(RecoveryCase).where(RecoveryCase.razorpay_order_id == request.razorpay_order_id).with_for_update()
+        select(RecoveryCase)
+        .where(RecoveryCase.razorpay_order_id == request.razorpay_order_id)
+        .with_for_update()
     )
     case = result.scalar_one_or_none()
     if case is None:
         raise HTTPException(status_code=404, detail="No recovery case found for this order")
+    order_id = case.razorpay_order_id
+    if order_id is None:
+        raise HTTPException(status_code=409, detail="Recovery case has no Razorpay order")
     if request.case_id and request.case_id != str(case.id):
         raise HTTPException(status_code=400, detail="Case does not own this order")
 
     expected = checkout_signature(
-        order_id=case.razorpay_order_id,
+        order_id=order_id,
         payment_id=request.razorpay_payment_id,
         secret=settings.RAZORPAY_KEY_SECRET,
     )
@@ -246,7 +260,9 @@ async def verify_payment(
 
     if case.is_recovered:
         if case.razorpay_payment_id != request.razorpay_payment_id:
-            raise HTTPException(status_code=400, detail="Payment does not match the verified case payment")
+            raise HTTPException(
+                status_code=400, detail="Payment does not match the verified case payment"
+            )
         return VerifyPaymentResponse(
             status="already_verified",
             case_id=str(case.id),
@@ -258,7 +274,7 @@ async def verify_payment(
         db=db,
         case=case,
         payment_id=request.razorpay_payment_id,
-        order_id=case.razorpay_order_id,
+        order_id=order_id,
         source="checkout_callback",
     )
 

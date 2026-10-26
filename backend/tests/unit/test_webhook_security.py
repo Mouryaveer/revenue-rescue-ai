@@ -1,11 +1,10 @@
 import hashlib
 import hmac
 
-from fastapi.testclient import TestClient
-
 from app.core.config import settings
 from app.core.database import get_db
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class _Session:
@@ -36,7 +35,8 @@ def test_webhook_rejects_invalid_signature(monkeypatch):
     monkeypatch.setattr(settings, "RAZORPAY_WEBHOOK_SECRET", "unit-secret")
     with _client() as client:
         response = client.post(
-            "/api/v1/webhooks/razorpay", content=b"{}",
+            "/api/v1/webhooks/razorpay",
+            content=b"{}",
             headers={"x-razorpay-event-id": "evt_invalid", "x-razorpay-signature": "bad"},
         )
     assert response.status_code == 400
@@ -50,7 +50,8 @@ def test_webhook_accepts_only_valid_raw_body_signature(monkeypatch):
     monkeypatch.setattr(settings, "RAZORPAY_WEBHOOK_SECRET", secret)
     with _client() as client:
         response = client.post(
-            "/api/v1/webhooks/razorpay", content=body,
+            "/api/v1/webhooks/razorpay",
+            content=body,
             headers={
                 "content-type": "application/json",
                 "x-razorpay-event-id": "evt_valid",

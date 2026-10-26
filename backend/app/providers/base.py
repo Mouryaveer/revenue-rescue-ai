@@ -14,18 +14,19 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class PaymentStatus(str, Enum):
-    PENDING   = "PENDING"
-    SUCCESS   = "SUCCESS"
-    FAILED    = "FAILED"
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
 
 class ProviderMode(str, Enum):
-    SIMULATION    = "SIMULATION"    # Deterministic synthetic simulator
-    RAZORPAY_TEST = "RAZORPAY_TEST" # Razorpay test/sandbox mode
+    SIMULATION = "SIMULATION"  # Deterministic synthetic simulator
+    RAZORPAY_TEST = "RAZORPAY_TEST"  # Razorpay test/sandbox mode
 
 
 @dataclass
@@ -98,6 +99,7 @@ class PaymentProvider(ABC):
         currency: str = "INR",
         customer_id: str,
         idempotency_key: str,
+        **kwargs: Any,
     ) -> RetryResult:
         """Execute a payment retry. Policy must have approved before calling this."""
 
@@ -112,6 +114,7 @@ class PaymentProvider(ABC):
         customer_id: str,
         delay_hours: int,
         idempotency_key: str,
+        **kwargs: Any,
     ) -> RetryResult:
         """Schedule a future payment retry."""
 
@@ -122,6 +125,6 @@ class PaymentProvider(ABC):
     def label(self) -> str:
         """Human-readable label for the UI environment badge."""
         return {
-            ProviderMode.SIMULATION:    "SIMULATION MODE",
+            ProviderMode.SIMULATION: "SIMULATION MODE",
             ProviderMode.RAZORPAY_TEST: "RAZORPAY TEST MODE",
         }[self.mode]

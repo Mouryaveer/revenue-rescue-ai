@@ -7,9 +7,17 @@ All data is synthetic. No real money. No real credentials.
 from __future__ import annotations
 
 import uuid
+
 import structlog
 
-from app.providers.base import OrderResult, PaymentProvider, PaymentResult, PaymentStatus, ProviderMode, RetryResult
+from app.providers.base import (
+    OrderResult,
+    PaymentProvider,
+    PaymentResult,
+    PaymentStatus,
+    ProviderMode,
+    RetryResult,
+)
 from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
 
 logger = structlog.get_logger(__name__)
@@ -98,7 +106,9 @@ class SimulatorPaymentProvider(PaymentProvider):
         retry_result = RetryResult(
             attempt_id=result.attempt_id,
             payment_id=result.transaction_id,
-            status=PaymentStatus.SUCCESS if result.outcome == SimulatedOutcome.SUCCESS else PaymentStatus.FAILED,
+            status=PaymentStatus.SUCCESS
+            if result.outcome == SimulatedOutcome.SUCCESS
+            else PaymentStatus.FAILED,
             amount_paise=result.amount_paise,
             currency=currency,
             provider=self.mode,

@@ -11,10 +11,8 @@ Verifies:
 """
 
 import math
-from pathlib import Path
-import pytest
 
-from app.services.ml_scoring_service import MLScoringService, FEATURE_COLUMNS
+from app.services.ml_scoring_service import FEATURE_COLUMNS, MLScoringService
 from app.services.scoring_service import RecoveryScoringService
 
 
@@ -70,17 +68,21 @@ def test_expected_value_unit_consistency():
     scorer = MLScoringService()
     amount_paise = 100000  # ₹1,000.00
     prob = 0.70
-    cost_paise = 500       # ₹5.00
+    cost_paise = 500  # ₹5.00
 
     # EV = (0.70 * 100,000) - 500 = 70,000 - 500 = 69,500 paise (₹695.00)
-    ev_paise = scorer.calculate_expected_value(prob, amount_paise, intervention_cost_paise=cost_paise)
+    ev_paise = scorer.calculate_expected_value(
+        prob, amount_paise, intervention_cost_paise=cost_paise
+    )
     assert ev_paise == 69500.0
 
     # Negative EV test: very low prob on small amount
     low_prob = 0.02
     small_amount = 10000  # ₹100.00
     # EV = (0.02 * 10,000) - 500 = 200 - 500 = -300 paise
-    ev_negative = scorer.calculate_expected_value(low_prob, small_amount, intervention_cost_paise=cost_paise)
+    ev_negative = scorer.calculate_expected_value(
+        low_prob, small_amount, intervention_cost_paise=cost_paise
+    )
     assert ev_negative == -300.0
 
 
@@ -90,9 +92,9 @@ def test_feature_preparation_sanitizes_malformed_inputs():
         "event_type": None,
         "failure_reason": "UNKNOWN_REASON_CODE",
         "payment_method": 12345,
-        "amount_paise": -5000,   # negative amount should clamp to 0
+        "amount_paise": -5000,  # negative amount should clamp to 0
         "retry_count": "invalid_int",  # invalid should clamp to 0
-        "event_hour_utc": 99,    # should wrap or clamp modulo 24
+        "event_hour_utc": 99,  # should wrap or clamp modulo 24
     }
     df = scorer._prepare_feature_row(malformed)
     assert list(df.columns) == FEATURE_COLUMNS

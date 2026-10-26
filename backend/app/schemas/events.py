@@ -34,9 +34,14 @@ class PaymentFailedEvent(BaseModel):
     @classmethod
     def validate_failure_reason(cls, v: str) -> str:
         valid = {
-            "INSUFFICIENT_FUNDS", "EXPIRED_METHOD", "GATEWAY_TEMPORARY",
-            "BANK_DECLINE", "AUTH_FAILURE", "MANDATE_FAILURE",
-            "SUBSCRIPTION_GRACE", "UNKNOWN",
+            "INSUFFICIENT_FUNDS",
+            "EXPIRED_METHOD",
+            "GATEWAY_TEMPORARY",
+            "BANK_DECLINE",
+            "AUTH_FAILURE",
+            "MANDATE_FAILURE",
+            "SUBSCRIPTION_GRACE",
+            "UNKNOWN",
         }
         if v not in valid:
             raise ValueError(f"failure_reason must be one of {valid}")

@@ -43,7 +43,9 @@ def decode_token(token: str) -> dict[str, Any]:
     try:
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     except JWTError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from exc
 
 
 async def get_current_user(
@@ -57,6 +59,9 @@ async def get_current_user(
 def require_role(*roles: Role):
     async def _check(user: dict = Depends(get_current_user)) -> dict:
         if user.get("role") not in [r.value for r in roles]:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+            )
         return user
+
     return _check

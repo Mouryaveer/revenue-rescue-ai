@@ -4,15 +4,30 @@ Provides 7 deterministic scenarios for a controlled 5-minute demo.
 Reset reseeds the demo data. All data is synthetic.
 """
 
+from typing import Literal
+
+import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing_extensions import TypedDict
+
 from app.core.database import get_db
-import structlog
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
-DEMO_SCENARIOS = [
+
+class DemoScenario(TypedDict):
+    id: str
+    name: str
+    scenario: Literal["FAILED_PAYMENT", "CHECKOUT_ABANDONMENT"]
+    failure_reason: str
+    amount_paise: int
+    expected: str
+    description: str
+
+
+DEMO_SCENARIOS: list[DemoScenario] = [
     {
         "id": "demo-001",
         "name": "Insufficient Funds → Delayed Retry → Recovered",
@@ -80,7 +95,7 @@ DEMO_SCENARIOS = [
 
 
 @router.get("/scenarios")
-async def list_demo_scenarios() -> list[dict]:
+async def list_demo_scenarios() -> list[DemoScenario]:
     """Return all 7 demo scenarios with descriptions."""
     return DEMO_SCENARIOS
 
@@ -97,13 +112,14 @@ async def reset_demo(
 
 async def _reset_demo_task() -> None:
     """Background task: drop and reseed demo data."""
-    import asyncio
-    import sys
     import pathlib
+    import sys
+
     sys.path.insert(0, str(pathlib.Path(__file__).parents[6]))
     sys.path.insert(0, str(pathlib.Path(__file__).parents[6] / "backend"))
     try:
         from database.seed.seed_demo import seed
+
         await seed()
         logger.info("demo_reset_complete")
     except Exception as e:
@@ -120,16 +136,18 @@ async def run_demo_scenario(
     scenario = next((s for s in DEMO_SCENARIOS if s["id"] == scenario_id), None)
     if not scenario:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail=f"Demo scenario {scenario_id} not found")
 
     import uuid
+
+    from app.schemas.events import CheckoutAbandonedEvent, PaymentFailedEvent
     from app.services.recovery_service import RecoveryService
-    from app.schemas.events import PaymentFailedEvent, CheckoutAbandonedEvent
 
     ikey = f"demo-{scenario_id}-{uuid.uuid4().hex[:8]}"
 
     if scenario["scenario"] == "CHECKOUT_ABANDONMENT":
-        event = CheckoutAbandonedEvent(
+        checkout_event = CheckoutAbandonedEvent(
             idempotency_key=ikey,
             customer_id=f"demo-cust-{scenario_id}",
             checkout_session_id=f"demo-sess-{scenario_id}",
@@ -138,9 +156,9 @@ async def run_demo_scenario(
             checkout_timeout_minutes=5,  # min allowed timeout
         )
         service = RecoveryService(db)
-        case = await service.create_case_from_checkout_abandonment(event)
+        case = await service.create_case_from_checkout_abandonment(checkout_event)
     else:
-        event = PaymentFailedEvent(
+        payment_event = PaymentFailedEvent(
             idempotency_key=ikey,
             customer_id=f"demo-cust-{scenario_id}",
             amount_paise=scenario["amount_paise"],
@@ -148,9 +166,10 @@ async def run_demo_scenario(
             failure_reason=scenario["failure_reason"],
         )
         service = RecoveryService(db)
-        case = await service.create_case_from_payment_failure(event)
+        case = await service.create_case_from_payment_failure(payment_event)
 
     from app.api.v1.endpoints.events import _run_agent_background
+
     background_tasks.add_task(_run_agent_background, str(case.id))
 
     return {

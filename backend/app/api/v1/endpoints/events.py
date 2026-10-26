@@ -8,11 +8,8 @@ Idempotency: duplicate idempotency_key returns 200 with is_duplicate=True — no
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
-
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -56,7 +53,9 @@ async def payment_failed(
     await db.commit()
     background_tasks.add_task(_run_agent_background, str(case.id))
 
-    logger.info("payment_failed_event_accepted", case_id=str(case.id), idempotency_key=event.idempotency_key)
+    logger.info(
+        "payment_failed_event_accepted", case_id=str(case.id), idempotency_key=event.idempotency_key
+    )
     return EventResponse(
         recovery_case_id=str(case.id),
         status="ACCEPTED",
@@ -68,6 +67,7 @@ async def _run_agent_background(case_id: str) -> None:
     """Run agent with its own independent DB session."""
     from app.core.database import AsyncSessionLocal
     from app.services.recovery_service import RecoveryService
+
     async with AsyncSessionLocal() as db:
         try:
             service = RecoveryService(db)

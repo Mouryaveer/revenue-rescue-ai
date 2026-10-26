@@ -62,6 +62,7 @@ async def run_agent(
 async def _run_agent_task(case_id: str) -> None:
     """Runs in background with its own DB session."""
     from app.core.database import AsyncSessionLocal
+
     async with AsyncSessionLocal() as db:
         try:
             service = RecoveryService(db)
@@ -70,7 +71,10 @@ async def _run_agent_task(case_id: str) -> None:
         except Exception as e:
             await db.rollback()
             import structlog
-            structlog.get_logger(__name__).error("background_agent_failed", case_id=case_id, error=str(e))
+
+            structlog.get_logger(__name__).error(
+                "background_agent_failed", case_id=case_id, error=str(e)
+            )
 
 
 @router.post("/{case_id}/escalate", status_code=status.HTTP_200_OK)

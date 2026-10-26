@@ -3,19 +3,16 @@ RazorpayTestProvider unit tests.
 Tests the Razorpay test provider implementation.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from app.providers.razorpay_test_provider import RazorpayTestProvider, get_payment_provider
+import pytest
 from app.providers.base import PaymentStatus, ProviderMode
+from app.providers.razorpay_test_provider import RazorpayTestProvider, get_payment_provider
 
 
 def test_razorpay_test_provider_initialization_with_valid_test_credentials():
     """Test provider initialization with valid test credentials."""
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
     assert provider.mode == ProviderMode.RAZORPAY_TEST
     assert provider._key_id == "rzp_test_12345678"
     assert provider._key_secret == "test_secret"
@@ -41,20 +38,14 @@ def test_razorpay_test_provider_rejects_production_credentials():
 
 def test_razorpay_test_provider_handles_missing_razorpay_sdk():
     """Test that provider handles missing Razorpay SDK gracefully."""
-    with patch('app.providers.razorpay_test_provider.razorpay', None):
-        provider = RazorpayTestProvider(
-            key_id="rzp_test_12345678",
-            key_secret="test_secret"
-        )
+    with patch("app.providers.razorpay_test_provider.razorpay", None):
+        provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
         assert provider._client is None
 
 
 def test_get_payment_unavailable_when_client_missing():
     """Test get_payment returns unavailable when client is missing."""
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
     provider._client = None
 
     result = provider.get_payment("pay_12345678")
@@ -68,7 +59,7 @@ def test_get_payment_unavailable_when_client_missing():
     assert result.is_synthetic is False
 
 
-@patch('app.providers.razorpay_test_provider.razorpay')
+@patch("app.providers.razorpay_test_provider.razorpay")
 def test_get_payment_success(mock_razorpay):
     """Test get_payment returns correct result for successful payment."""
     mock_client = MagicMock()
@@ -80,10 +71,7 @@ def test_get_payment_success(mock_razorpay):
     }
     mock_razorpay.Client.return_value = mock_client
 
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
 
     result = provider.get_payment("pay_12345678")
 
@@ -95,7 +83,7 @@ def test_get_payment_success(mock_razorpay):
     assert result.is_synthetic is False
 
 
-@patch('app.providers.razorpay_test_provider.razorpay')
+@patch("app.providers.razorpay_test_provider.razorpay")
 def test_get_payment_failed(mock_razorpay):
     """Test get_payment returns correct result for failed payment."""
     mock_client = MagicMock()
@@ -108,10 +96,7 @@ def test_get_payment_failed(mock_razorpay):
     }
     mock_razorpay.Client.return_value = mock_client
 
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
 
     result = provider.get_payment("pay_12345678")
 
@@ -121,7 +106,7 @@ def test_get_payment_failed(mock_razorpay):
     assert result.failure_reason == "BAD_REQUEST_ERROR"
 
 
-@patch('app.providers.razorpay_test_provider.razorpay')
+@patch("app.providers.razorpay_test_provider.razorpay")
 def test_get_payment_pending(mock_razorpay):
     """Test get_payment returns correct result for pending payment."""
     mock_client = MagicMock()
@@ -133,10 +118,7 @@ def test_get_payment_pending(mock_razorpay):
     }
     mock_razorpay.Client.return_value = mock_client
 
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
 
     result = provider.get_payment("pay_12345678")
 
@@ -144,7 +126,7 @@ def test_get_payment_pending(mock_razorpay):
     assert result.status == PaymentStatus.PENDING
 
 
-@patch('app.providers.razorpay_test_provider.razorpay')
+@patch("app.providers.razorpay_test_provider.razorpay")
 def test_retry_payment_success(mock_razorpay):
     """Test retry_payment creates order successfully."""
     mock_client = MagicMock()
@@ -157,10 +139,7 @@ def test_retry_payment_success(mock_razorpay):
     }
     mock_razorpay.Client.return_value = mock_client
 
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
 
     result = provider.retry_payment(
         case_id="case-001",
@@ -193,10 +172,7 @@ def test_retry_payment_success(mock_razorpay):
 
 def test_retry_payment_unavailable_when_client_missing():
     """Test retry_payment returns unavailable when client is missing."""
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
     provider._client = None
 
     result = provider.retry_payment(
@@ -215,7 +191,7 @@ def test_retry_payment_unavailable_when_client_missing():
     assert result.failure_reason == "PROVIDER_UNAVAILABLE"
 
 
-@patch('app.providers.razorpay_test_provider.razorpay')
+@patch("app.providers.razorpay_test_provider.razorpay")
 def test_check_status(mock_razorpay):
     """Test check_status returns correct payment status."""
     mock_client = MagicMock()
@@ -227,10 +203,7 @@ def test_check_status(mock_razorpay):
     }
     mock_razorpay.Client.return_value = mock_client
 
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
 
     status = provider.check_status("pay_12345678")
     assert status == PaymentStatus.SUCCESS
@@ -238,10 +211,7 @@ def test_check_status(mock_razorpay):
 
 def test_schedule_retry_delegates_to_retry_payment():
     """Test that schedule_retry delegates to retry_payment."""
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
     provider._client = None
 
     result = provider.schedule_retry(
@@ -264,7 +234,7 @@ def test_get_payment_provider_factory_razorpay_test():
     provider = get_payment_provider(
         provider_name="razorpay_test",
         razorpay_key_id="rzp_test_12345678",
-        razorpay_key_secret="test_secret"
+        razorpay_key_secret="test_secret",
     )
 
     assert isinstance(provider, RazorpayTestProvider)
@@ -276,7 +246,7 @@ def test_get_payment_provider_factory_simulator():
     provider = get_payment_provider(
         provider_name="simulator",
         razorpay_key_id="rzp_test_12345678",
-        razorpay_key_secret="test_secret"
+        razorpay_key_secret="test_secret",
     )
 
     assert provider.mode == ProviderMode.SIMULATION
@@ -288,50 +258,53 @@ def test_get_payment_provider_factory_unknown():
         get_payment_provider(
             provider_name="unknown_provider",
             razorpay_key_id="rzp_test_12345678",
-            razorpay_key_secret="test_secret"
+            razorpay_key_secret="test_secret",
         )
 
 
 def test_map_status_captured():
     """Test status mapping for captured payments."""
     from app.providers.razorpay_test_provider import RazorpayTestProvider
+
     assert RazorpayTestProvider._map_status("captured") == PaymentStatus.SUCCESS
 
 
 def test_map_status_authorized():
     """Test status mapping for authorized payments."""
     from app.providers.razorpay_test_provider import RazorpayTestProvider
+
     assert RazorpayTestProvider._map_status("authorized") == PaymentStatus.PENDING
 
 
 def test_map_status_created():
     """Test status mapping for created payments."""
     from app.providers.razorpay_test_provider import RazorpayTestProvider
+
     assert RazorpayTestProvider._map_status("created") == PaymentStatus.PENDING
 
 
 def test_map_status_failed():
     """Test status mapping for failed payments."""
     from app.providers.razorpay_test_provider import RazorpayTestProvider
+
     assert RazorpayTestProvider._map_status("failed") == PaymentStatus.FAILED
 
 
 def test_map_status_refunded():
     """Test status mapping for refunded payments."""
     from app.providers.razorpay_test_provider import RazorpayTestProvider
+
     assert RazorpayTestProvider._map_status("refunded") == PaymentStatus.CANCELLED
 
 
 def test_map_status_unknown():
     """Test status mapping for unknown payment statuses."""
     from app.providers.razorpay_test_provider import RazorpayTestProvider
+
     assert RazorpayTestProvider._map_status("unknown_status") == PaymentStatus.FAILED
 
 
 def test_provider_label():
     """Test provider label method."""
-    provider = RazorpayTestProvider(
-        key_id="rzp_test_12345678",
-        key_secret="test_secret"
-    )
+    provider = RazorpayTestProvider(key_id="rzp_test_12345678", key_secret="test_secret")
     assert provider.label() == "RAZORPAY TEST MODE"

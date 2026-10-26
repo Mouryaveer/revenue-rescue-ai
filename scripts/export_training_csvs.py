@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 EVENT_COLUMNS = [
     "schema_version",
     "event_id",
@@ -77,15 +76,19 @@ def build_customer_history(events: pd.DataFrame) -> pd.DataFrame:
     frame["checkout_abandonment"] = (frame["event_type"] == "CHECKOUT_ABANDONED").astype(int)
     frame["failure_count"] = 1
 
-    history = frame.groupby("customer_id", sort=True).agg(
-        transaction_count=("event_id", "count"),
-        failure_count=("failure_count", "sum"),
-        success_count=("recovered_int", "sum"),
-        average_amount_paise=("amount_paise", "mean"),
-        total_amount_paise=("amount_paise", "sum"),
-        retry_count_mean=("retry_count", "mean"),
-        checkout_abandonment_count=("checkout_abandonment", "sum"),
-    ).reset_index()
+    history = (
+        frame.groupby("customer_id", sort=True)
+        .agg(
+            transaction_count=("event_id", "count"),
+            failure_count=("failure_count", "sum"),
+            success_count=("recovered_int", "sum"),
+            average_amount_paise=("amount_paise", "mean"),
+            total_amount_paise=("amount_paise", "sum"),
+            retry_count_mean=("retry_count", "mean"),
+            checkout_abandonment_count=("checkout_abandonment", "sum"),
+        )
+        .reset_index()
+    )
     history["failure_rate"] = history["failure_count"] / history["transaction_count"]
     history["checkout_abandonment_rate"] = (
         history["checkout_abandonment_count"] / history["transaction_count"]
@@ -115,21 +118,35 @@ def export(source: Path, output: Path) -> dict[str, object]:
     events = read_parquet_files(source / "bronze" / "payment_events")
     customers = read_parquet_files(source / "bronze" / "customers")
 
-    events = events.drop_duplicates(subset=["event_id"]).sort_values("event_id").reset_index(drop=True)
-    events["occurred_at"] = pd.to_datetime(events["occurred_at"], utc=True).dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    events = (
+        events.drop_duplicates(subset=["event_id"]).sort_values("event_id").reset_index(drop=True)
+    )
+    events["occurred_at"] = pd.to_datetime(events["occurred_at"], utc=True).dt.strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     events["recovered"] = events["recovered"].fillna(False).astype(bool)
     events["is_synthetic"] = events["is_synthetic"].fillna(True).astype(bool)
     events["split"] = events["event_id"].map(stable_split)
     events = events[EVENT_COLUMNS + ["split"]]
 
-    customers = customers.drop_duplicates(subset=["customer_id"]).sort_values("customer_id").reset_index(drop=True)
+    customers = (
+        customers.drop_duplicates(subset=["customer_id"])
+        .sort_values("customer_id")
+        .reset_index(drop=True)
+    )
     customers = customers[CUSTOMER_COLUMNS]
 
     output.mkdir(parents=True, exist_ok=True)
     events.to_csv(output / "payment_events.csv", index=False)
-    events.loc[events["split"] == "train"].drop(columns=["split"]).to_csv(output / "train.csv", index=False)
-    events.loc[events["split"] == "validation"].drop(columns=["split"]).to_csv(output / "validation.csv", index=False)
-    events.loc[events["split"] == "test"].drop(columns=["split"]).to_csv(output / "test.csv", index=False)
+    events.loc[events["split"] == "train"].drop(columns=["split"]).to_csv(
+        output / "train.csv", index=False
+    )
+    events.loc[events["split"] == "validation"].drop(columns=["split"]).to_csv(
+        output / "validation.csv", index=False
+    )
+    events.loc[events["split"] == "test"].drop(columns=["split"]).to_csv(
+        output / "test.csv", index=False
+    )
     customers.to_csv(output / "customer_profiles.csv", index=False)
     build_customer_history(events.drop(columns=["split"])).to_csv(
         output / "customer_history_features.csv", index=False
@@ -141,7 +158,9 @@ def export(source: Path, output: Path) -> dict[str, object]:
         "output": str(output),
         "customers": int(len(customers)),
         "events": int(len(events)),
-        "split_counts": {key: int((events["split"] == key).sum()) for key in ("train", "validation", "test")},
+        "split_counts": {
+            key: int((events["split"] == key).sum()) for key in ("train", "validation", "test")
+        },
         "files": [
             "payment_events.csv",
             "train.csv",

@@ -59,8 +59,8 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
 
     try:
         role = Role(request.role)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid role: {request.role}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {request.role}") from exc
 
     user = User(
         username=request.username,

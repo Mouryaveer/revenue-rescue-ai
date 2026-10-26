@@ -3,9 +3,11 @@ Schema validation unit tests.
 Ensures Pydantic models reject invalid input at the API boundary.
 """
 
-import pytest
 import uuid
-from app.schemas.events import PaymentFailedEvent, CheckoutAbandonedEvent
+
+import pytest
+from app.schemas.events import CheckoutAbandonedEvent, PaymentFailedEvent
+from pydantic import ValidationError
 
 
 def test_valid_payment_failed_event():
@@ -21,7 +23,7 @@ def test_valid_payment_failed_event():
 
 
 def test_invalid_failure_reason_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         PaymentFailedEvent(
             idempotency_key="k",
             customer_id=str(uuid.uuid4()),
@@ -32,7 +34,7 @@ def test_invalid_failure_reason_rejected():
 
 
 def test_zero_amount_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         PaymentFailedEvent(
             idempotency_key="k",
             customer_id=str(uuid.uuid4()),
@@ -43,7 +45,7 @@ def test_zero_amount_rejected():
 
 
 def test_negative_amount_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         PaymentFailedEvent(
             idempotency_key="k",
             customer_id=str(uuid.uuid4()),
@@ -65,7 +67,7 @@ def test_valid_checkout_abandoned_event():
 
 
 def test_checkout_timeout_below_minimum_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         CheckoutAbandonedEvent(
             idempotency_key="chk",
             customer_id=str(uuid.uuid4()),

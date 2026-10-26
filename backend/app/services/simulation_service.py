@@ -7,7 +7,6 @@ Reproducible via random_seed.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
 import structlog
 from sqlalchemy import select
@@ -50,14 +49,16 @@ class SimulationService:
         Execute the batch simulation.
         Generates synthetic events, runs recovery (or baseline), records results.
         """
+        from agents.graph.recovery_graph import RecoveryAgent
+        from agents.schemas.agent_schemas import (
+            make_initial_state as _make_state,  # noqa: F401 (used in loop)
+        )
+        from app.core.config import settings
+        from app.services.policy_service import PolicyService
+        from simulator.engine.payment_simulator import PaymentSimulator
+        from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
         from simulator.generators.customer_generator import CustomerGenerator
         from simulator.generators.payment_generator import PaymentEventGenerator
-        from simulator.engine.payment_simulator import PaymentSimulator, SimulatedOutcome
-        from simulator.engine.recovery_verifier import RecoveryVerifier, VerificationOutcome
-        from app.services.policy_service import PolicyService
-        from agents.graph.recovery_graph import RecoveryAgent
-        from agents.schemas.agent_schemas import make_initial_state as _make_state  # noqa: F401 (used in loop)
-        from app.core.config import settings
 
         result = await self._db.execute(
             select(SimulationRun).where(SimulationRun.id == uuid.UUID(run_db_id))
@@ -90,8 +91,6 @@ class SimulationService:
             total_recovered = 0
             recovered_cases = 0
             escalated_cases = 0
-            results_by_scenario: dict = {}
-
             for i, event in enumerate(events):
                 if run.is_baseline:
                     # Baseline: fixed retry schedule, no AI diagnosis
@@ -151,7 +150,9 @@ class SimulationService:
             run.progress_pct = 100.0
             run.revenue_at_risk_paise = total_at_risk
             run.revenue_recovered_paise = total_recovered
-            run.recovery_rate_pct = round(total_recovered / total_at_risk * 100, 2) if total_at_risk > 0 else 0.0
+            run.recovery_rate_pct = (
+                round(total_recovered / total_at_risk * 100, 2) if total_at_risk > 0 else 0.0
+            )
             run.total_cases = len(events)
             run.recovered_cases = recovered_cases
             run.escalated_cases = escalated_cases
@@ -165,7 +166,9 @@ class SimulationService:
                 "note": "All numbers computed from real simulation execution",
             }
             await self._db.flush()
-            logger.info("simulation_completed", simulation_id=run.simulation_id, rate=run.recovery_rate_pct)
+            logger.info(
+                "simulation_completed", simulation_id=run.simulation_id, rate=run.recovery_rate_pct
+            )
 
         except Exception as e:
             run.status = "FAILED"
@@ -185,22 +188,24 @@ class SimulationService:
         )
         runs = []
         for r in result.scalars().all():
-            runs.append({
-                "simulation_id": r.simulation_id,
-                "label": r.label,
-                "status": r.status,
-                "is_baseline": r.is_baseline,
-                "num_events": r.num_events,
-                "random_seed": r.random_seed,
-                "progress_pct": r.progress_pct or 0.0,
-                "recovery_rate_pct": r.recovery_rate_pct or 0.0,
-                "revenue_at_risk_paise": r.revenue_at_risk_paise or 0,
-                "revenue_recovered_paise": r.revenue_recovered_paise or 0,
-                "total_cases": r.total_cases or 0,
-                "recovered_cases": r.recovered_cases or 0,
-                "escalated_cases": r.escalated_cases or 0,
-                "policy_violations": r.policy_violations or 0,
-                "results": r.results,
-                "created_at": r.created_at,
-            })
+            runs.append(
+                {
+                    "simulation_id": r.simulation_id,
+                    "label": r.label,
+                    "status": r.status,
+                    "is_baseline": r.is_baseline,
+                    "num_events": r.num_events,
+                    "random_seed": r.random_seed,
+                    "progress_pct": r.progress_pct or 0.0,
+                    "recovery_rate_pct": r.recovery_rate_pct or 0.0,
+                    "revenue_at_risk_paise": r.revenue_at_risk_paise or 0,
+                    "revenue_recovered_paise": r.revenue_recovered_paise or 0,
+                    "total_cases": r.total_cases or 0,
+                    "recovered_cases": r.recovered_cases or 0,
+                    "escalated_cases": r.escalated_cases or 0,
+                    "policy_violations": r.policy_violations or 0,
+                    "results": r.results,
+                    "created_at": r.created_at,
+                }
+            )
         return runs
