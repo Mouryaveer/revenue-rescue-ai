@@ -1,0 +1,46 @@
+# Render Blueprint for Zero-Cost Cloud Deployment
+# Budget: ₹0 / month (Render Free Tier)
+# Free Tier Specs: 512 MB RAM, 0.1 CPU, spins down after 15 min of inactivity (cold start ~50s)
+
+services:
+  - type: web
+    name: revenuerescue-backend
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install --no-cache-dir -r backend/requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: PYTHONPATH
+        value: ".:backend"
+      - key: PORT
+        value: "8000"
+      - key: PAYMENT_MODE
+        value: simulation
+      - key: ALLOW_REAL_PAYMENTS
+        value: "false"
+      - key: PAYMENT_PROVIDER
+        value: simulator
+      - key: LIGHTGBM_MODEL_PATH
+        value: models/artifacts/lightgbm_recovery_model.joblib
+      - key: LLM_PROVIDER
+        value: deterministic  # Set to "cloudflare" if CLOUDFLARE credentials configured
+      - key: REASONING_MODEL
+        value: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
+      - key: LLM_TIMEOUT_SECONDS
+        value: "30"
+      - key: MAX_LLM_OUTPUT_TOKENS
+        value: "512"
+      - key: DATABASE_URL
+        sync: false  # Configure with Supabase Free PostgreSQL URL (with asyncpg driver: postgresql+asyncpg://...)
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: '["*"]'

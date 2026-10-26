@@ -1,19 +1,27 @@
-#!/usr/bin/env pwsh
-# RevenueRescue AI — Local backend startup
+# RevenueRescue AI - Local backend startup
 # Run from repo root: .\start_backend.ps1
 
-$env:DATABASE_URL     = "postgresql+asyncpg://revenuerescue:revenuerescue@127.0.0.1:5432/revenuerescue"
-$env:LLM_PROVIDER     = "mock"
-$env:SIMULATION_MODE  = "true"
-$env:APP_ENV          = "development"
-$env:DEBUG            = "true"
-# Secrets and provider selection must come from the environment/.env file.
-# This script never supplies credentials or silently switches to simulation.
+$PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+if (Test-Path "$PSScriptRoot\.env") {
+    Get-Content "$PSScriptRoot\.env" | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith("#") -and $line.Contains("=")) {
+            $parts = $line.Split("=", 2)
+            $name = $parts[0].Trim()
+            $val = $parts[1].Trim()
+            [System.Environment]::SetEnvironmentVariable($name, $val, "Process")
+        }
+    }
+}
+
+$env:PYTHONPATH = "$PSScriptRoot;$PSScriptRoot\backend"
 
 Write-Host ""
-Write-Host "  RevenueRescue AI — Backend" -ForegroundColor Cyan
-Write-Host "  API:   http://localhost:8000"
-Write-Host "  Docs:  http://localhost:8000/docs"
+Write-Host "  RevenueRescue AI - Backend" -ForegroundColor Cyan
+Write-Host "  API:       http://localhost:8000"
+Write-Host "  Docs:      http://localhost:8000/docs"
+Write-Host "  Provider:  $($env:PAYMENT_PROVIDER)"
 Write-Host ""
 
 Set-Location "$PSScriptRoot\backend"

@@ -135,7 +135,7 @@ async def run_demo_scenario(
             checkout_session_id=f"demo-sess-{scenario_id}",
             amount_paise=scenario["amount_paise"],
             currency="INR",
-            checkout_timeout_minutes=0,  # already elapsed in demo
+            checkout_timeout_minutes=5,  # min allowed timeout
         )
         service = RecoveryService(db)
         case = await service.create_case_from_checkout_abandonment(event)

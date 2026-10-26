@@ -20,15 +20,15 @@ const TIERS = [
     ],
   },
   {
-    name:     "Razorpay Test",
-    price:    "Buildathon",
-    sub:      "Track 03 submission",
+    name:     "Production",
+    price:    "Self-hosted",
+    sub:      "Full deployment",
     color:    "#14213d",
     cta:      "View on GitHub",
     href:     "/docs/",
     features: [
       "Everything in Simulation",
-      "Razorpay test-mode webhooks",
+      "Test-mode payment webhooks",
       "Real test payment attempts",
       "Live environment indicators",
       "Docker Compose included",
@@ -39,15 +39,15 @@ const TIERS = [
 ];
 
 const COMPARISON_ROWS = [
-  ["Feature",                    "Simulation",  "Razorpay Test"],
+  ["Feature",                    "Simulation",  "Production"],
   ["LangGraph agent",            "✓",           "✓"],
   ["Policy engine",              "✓",           "✓"],
   ["Recovery verifier",          "✓",           "✓"],
   ["Audit trail",                "✓",           "✓"],
   ["Batch simulation",           "✓",           "✓"],
   ["Baseline comparison",        "✓",           "✓"],
-  ["Real credentials",           "Seeded sim",  "Razorpay test keys"],
-  ["Payment simulator",          "Built-in",    "Built-in + Razorpay"],
+  ["Real credentials",           "Seeded sim",  "Test keys"],
+  ["Payment simulator",          "Built-in",    "Built-in + Provider"],
   ["Docker Compose",             "✓",           "✓"],
   ["Policy violations = 0",      "Enforced",    "Enforced"],
 ];
@@ -78,30 +78,30 @@ export default function PricingPage() {
               {TIERS.map((tier) => (
                 <div key={tier.name} style={{
                   padding: "36px 40px",
-                  background: tier.name === "Razorpay Test" ? "#14213d" : "#fff",
-                  color:      tier.name === "Razorpay Test" ? "#fff" : "#14213d",
-                  border:     "1px solid " + (tier.name === "Razorpay Test" ? "#14213d" : "#dde8f6"),
+                  background: tier.name === "Production" ? "#14213d" : "#fff",
+                  color:      tier.name === "Production" ? "#fff" : "#14213d",
+                  border:     "1px solid " + (tier.name === "Production" ? "#14213d" : "#dde8f6"),
                   borderRadius: 6,
                   boxShadow:  tier.name === "Simulation" ? "18px 18px 0 #dce6ff" : "18px 18px 0 #e7ff8a",
                 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: tier.name === "Razorpay Test" ? "#8da4d3" : "#53637c" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: tier.name === "Production" ? "#8da4d3" : "#53637c" }}>
                     {tier.name}
                   </span>
                   <div style={{ margin: "10px 0 8px", font: "800 64px/.9 Manrope, sans-serif", letterSpacing: "-.08em" }}>
                     {tier.price}
                   </div>
-                  <p style={{ margin: "0 0 28px", fontSize: 13, color: tier.name === "Razorpay Test" ? "#8da4d3" : "#66748b" }}>
+                  <p style={{ margin: "0 0 28px", fontSize: 13, color: tier.name === "Production" ? "#8da4d3" : "#66748b" }}>
                     {tier.sub}
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
                     {tier.features.map((f) => (
                       <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                        <CheckCircle size={14} style={{ color: tier.name === "Razorpay Test" ? "#e7ff8a" : "#1747f5", flexShrink: 0 }} />
-                        <span style={{ color: tier.name === "Razorpay Test" ? "#c8d5e8" : "#4a5878" }}>{f}</span>
+                        <CheckCircle size={14} style={{ color: tier.name === "Production" ? "#e7ff8a" : "#1747f5", flexShrink: 0 }} />
+                        <span style={{ color: tier.name === "Production" ? "#c8d5e8" : "#4a5878" }}>{f}</span>
                       </div>
                     ))}
                   </div>
-                  <ButtonLink href={tier.href} variant={tier.name === "Razorpay Test" ? "primary" : "dark"}>
+                  <ButtonLink href={tier.href} variant={tier.name === "Production" ? "primary" : "dark"}>
                     {tier.cta}
                   </ButtonLink>
                 </div>

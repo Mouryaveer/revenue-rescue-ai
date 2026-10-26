@@ -93,14 +93,14 @@ test:
 	  -v --tb=short
 
 test-frontend:
-	cd frontend && npm run test -- --run
+	cd frontend && pnpm test
 
 test-all: test-local test-frontend
 
 # ── Code quality ───────────────────────────────────────────────────────────────
 lint:
 	ruff check .
-	cd frontend && npm run lint
+	cd frontend && pnpm check
 
 lint-fix:
 	ruff check . --fix

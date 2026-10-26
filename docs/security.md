@@ -29,7 +29,7 @@
 ## Auth
 
 JWT — `python-jose` / `passlib bcrypt`. Tokens expire per `ACCESS_TOKEN_EXPIRE_MINUTES`.
-No real OAuth provider needed for hackathon MVP.
+No real OAuth provider needed for the current deployment.
 
 ## Secrets checklist
 

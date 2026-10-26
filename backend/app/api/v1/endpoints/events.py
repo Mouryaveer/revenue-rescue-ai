@@ -53,6 +53,7 @@ async def payment_failed(
         )
 
     case = await service.create_case_from_payment_failure(event)
+    await db.commit()
     background_tasks.add_task(_run_agent_background, str(case.id))
 
     logger.info("payment_failed_event_accepted", case_id=str(case.id), idempotency_key=event.idempotency_key)
@@ -104,6 +105,7 @@ async def checkout_abandoned(
         )
 
     case = await service.create_case_from_checkout_abandonment(event)
+    await db.commit()
     background_tasks.add_task(_run_agent_background, str(case.id))
 
     logger.info("checkout_abandoned_event_accepted", case_id=str(case.id))

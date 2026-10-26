@@ -475,6 +475,12 @@ Install dependencies:
 pip install -r backend/requirements.txt
 ```
 
+Train or verify LightGBM recovery model (optional — deterministic fallback is active if omitted):
+
+```bash
+python scripts/train_lightgbm.py
+```
+
 Configure:
 
 ```bash
@@ -491,8 +497,8 @@ uvicorn backend.app.main:app --reload --port 8000
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ---
@@ -505,30 +511,44 @@ Important variables:
 
 | Variable                          | Default        | Description                                                        |
 | --------------------------------- | -------------- | ------------------------------------------------------------------ |
-| `LLM_PROVIDER`                    | `mock`         | `mock` for deterministic fallback, `openai` for real LLM reasoning |
+| `LLM_PROVIDER`                    | `deterministic`| `deterministic` (default, ₹0), `cloudflare` (Workers AI DeepSeek-R1), `openai` |
+| `REASONING_MODEL`                 | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | Serverless model for Cloudflare Workers AI |
+| `CLOUDFLARE_ACCOUNT_ID`           | Empty          | Cloudflare dashboard Account ID (for Workers AI)                   |
+| `CLOUDFLARE_API_TOKEN`            | Empty          | Cloudflare API token with Workers AI Read permissions              |
 | `OPENAI_API_KEY`                  | Empty          | Required only when `LLM_PROVIDER=openai`                           |
-| `PAYMENT_PROVIDER`                | `simulator`    | Configured test payment provider                                   |
-| `PAYMENT_PROVIDER_KEY_ID`         | Empty          | Backend-only test-mode public key                                  |
-| `PAYMENT_PROVIDER_KEY_SECRET`     | Empty          | Backend-only test-mode secret                                      |
-| `PAYMENT_PROVIDER_WEBHOOK_SECRET` | Empty          | Backend-only webhook signing secret                                |
+| `LIGHTGBM_MODEL_PATH`             | `models/artifacts/lightgbm_recovery_model.joblib` | Path to trained LightGBM model bundle |
+| `PAYMENT_MODE`                    | `simulation`   | Financial safety: `simulation`, `test`, `live` (strictly locked)  |
+| `ALLOW_REAL_PAYMENTS`             | `false`        | Non-negotiable safety invariant for ₹0 budget                     |
+| `PAYMENT_PROVIDER`                | `simulator`    | Configured payment provider (`simulator`)                          |
 | `SIMULATION_MODE`                 | `true`         | Enables isolated synthetic simulations                             |
 | `SIMULATION_SEED`                 | `42`           | Seed for reproducible datasets                                     |
-| `DATABASE_URL`                    | Local Postgres | PostgreSQL connection string                                       |
+| `DATABASE_URL`                    | Local Postgres | PostgreSQL or SQLite connection string                             |
 
-### Run without OpenAI
+### Free-Tier Serverless Reasoning (Cloudflare Workers AI)
 
-The default configuration requires **no API key**:
-
-```env
-LLM_PROVIDER=mock
-```
-
-To enable OpenAI reasoning:
+Run DeepSeek-R1-Distill-Qwen reasoning at ₹0 cost with 10,000 free neurons/day:
 
 ```env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your-key
+LLM_PROVIDER=cloudflare
+REASONING_MODEL=@cf/deepseek-ai/deepseek-r1-distill-qwen-32b
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_API_TOKEN=your_api_token
 ```
+
+### Run without any Cloud Credentials (Default)
+
+The default configuration requires **no external API keys or paid accounts**:
+
+```env
+LLM_PROVIDER=deterministic
+```
+
+---
+
+# 🚀 Cloud Deployment & ML Training Guides
+
+- 📖 **Zero-Cost Cloud Deployment Guide**: [docs/ZERO_COST_DEPLOYMENT.md](docs/ZERO_COST_DEPLOYMENT.md) — Render Free + Supabase Free + Cloudflare Workers AI setup.
+- 🤖 **LightGBM Model Training Guide**: [docs/MODEL_TRAINING.md](docs/MODEL_TRAINING.md) — Feature engineering, leakage prevention, calibration, and artifact management.
 
 ---
 
@@ -615,45 +635,14 @@ http://localhost:8000/docs
 
 ```text
 revenue-rescue-ai/
-│
-├── backend/
-│   ├── FastAPI application
-│   ├── models
-│   ├── services
-│   └── schemas
-│
-├── agents/
-│   ├── LangGraph state machine
-│   ├── nodes
-│   ├── prompts
-│   └── tools
-│
-├── policies/
-│   ├── policy engine
-│   ├── schemas
-│   └── tests
-│
-├── simulator/
-│   ├── payment simulator
-│   ├── communication simulator
-│   ├── generators
-│   └── tests
-│
-├── database/
-│   ├── Alembic migrations
-│   └── demo seed
-│
-├── frontend/
-│   └── dashboard
-│
-├── tests/
-│   ├── integration
-│   ├── e2e
-│   └── redteam
-│
-├── docs/
-│   └── architecture documentation
-│
+├── backend/         FastAPI app, models, services, schemas
+├── agents/          LangGraph state machine, nodes, prompts, tools
+├── policies/        Policy engine (deterministic), schemas, tests
+├── simulator/       Payment + communication simulator, generators
+├── database/        Alembic migrations, demo seed
+├── frontend/        React + Vite dashboard (pnpm)
+├── tests/           Integration, e2e, red-team (25 safety tests)
+├── docs/            Architecture docs
 ├── docker-compose.yml
 ├── .env.example
 ├── Makefile

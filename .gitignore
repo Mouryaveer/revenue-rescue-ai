@@ -53,9 +53,14 @@ ai_results.csv
 
 
 .vscode
-# Old working copy
+# Old working copies
 revenue-rescue-ai-fixed/
-
-# Miscellaneous Markdown notes
-*.md
 revenue-rescue-ai/
+
+# Local run state, generated data and model artifacts (reproducible from notebooks)
+.run/
+data/preprocessed/
+models/artifacts/
+
+# Miscellaneous scratch notes (not README or docs)
+revenuerescue-ai-kiro-master-prompt.md

@@ -222,7 +222,7 @@ export function Footer() {
     ["Recovery", [["Failed Payments", "/recovery/"], ["Subscriptions", "/recovery/"], ["Checkout Abandonment", "/recovery/"], ["Pricing", "/pricing/"]]],
     ["Platform",  [["AI Agent Pipeline", "/platform/"], ["Policy Engine", "/platform/"], ["Payment Simulator", "/platform/"], ["Audit Trail", "/platform/"]]],
     ["Developers",[["API Reference", "/docs/"], ["Simulation Lab", "/simulation/"], ["GitHub", "/docs/"], ["Docker Compose", "/docs/"]]],
-    ["Company",   [["About", "/about/"], ["Razorpay Buildathon", "/about/"], ["Track 03", "/about/"], ["Contact", "/about/"]]],
+    ["Company",   [["About", "/about/"], ["Documentation", "/docs/"], ["GitHub", "/docs/"], ["Contact", "/about/"]]],
   ] as const;
 
   return (
@@ -231,7 +231,7 @@ export function Footer() {
         <div className="footer-top">
           <div>
             <BrandLockup inverse />
-            <p>Find revenue that's slipping away — and win it back.<br />Razorpay Buildathon 2026 · Track 03.</p>
+            <p>Find revenue that's slipping away — and win it back.<br />Autonomous AI Revenue Recovery Engine.</p>
           </div>
           <ButtonLink href="/dashboard/" variant="primary">Try live demo</ButtonLink>
         </div>
@@ -246,7 +246,7 @@ export function Footer() {
           ))}
         </div>
         <div className="footer-bottom">
-          <span>© 2026 RevenueRescue AI · Razorpay Buildathon Track 03</span>
+          <span>© 2026 RevenueRescue AI. All rights reserved.</span>
           <span className="footer-legal">
             <Link href="/privacy/">Privacy</Link>
             <Link href="/terms/">Terms</Link>

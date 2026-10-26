@@ -10,7 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Source is mounted as a volume at runtime — no COPY needed here
-# PYTHONPATH=/app:/app/backend is set via docker-compose environment
+# Copy application source code for standalone / cloud production deployment
+COPY backend/ /app/backend/
+COPY agents/ /app/agents/
+COPY policies/ /app/policies/
+COPY simulator/ /app/simulator/
+COPY models/ /app/models/
+
+ENV PYTHONPATH="/app:/app/backend"
+ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -61,7 +61,7 @@ export default function Home() {
 
         {/* ── Offer strip ─────────────────────────────────────────── */}
         <div className="offer-strip">
-          <span><Zap size={12} /> Razorpay Buildathon 2026 · Track 03 — AI Revenue Recovery</span>
+          <span><Zap size={12} /> RevenueRescue AI · Autonomous Revenue Recovery</span>
           <a href="/simulation/">Run a free simulation →</a>
         </div>
 

@@ -1,6 +1,6 @@
 """
 User model for RBAC authentication.
-Simple JWT-based auth — sufficient for hackathon MVP.
+Simple JWT-based auth.
 """
 
 from sqlalchemy import Boolean, String

@@ -1,5 +1,5 @@
 """
-Auth endpoints — JWT-based, simple RBAC for hackathon MVP.
+Auth endpoints — JWT-based, simple RBAC.
 Roles: MERCHANT_ADMIN, OPERATOR, AUDITOR, SYSTEM
 """
 

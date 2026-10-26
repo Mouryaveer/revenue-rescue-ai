@@ -146,8 +146,17 @@ class RecoveryAgent:
         model: str = "gpt-4o",
         *,
         payment_provider: PaymentProvider,
+        cloudflare_account_id: str = "",
+        cloudflare_api_token: str = "",
+        **kwargs,
     ) -> None:
-        self._llm = get_llm_provider(llm_provider, api_key, model)
+        self._llm = get_llm_provider(
+            provider=llm_provider,
+            api_key=api_key,
+            model=model,
+            cloudflare_account_id=cloudflare_account_id,
+            cloudflare_api_token=cloudflare_api_token,
+        )
         self._policy_engine = PolicyEngine(policy)
         self._provider = payment_provider
         self._verifier = RecoveryVerifier()

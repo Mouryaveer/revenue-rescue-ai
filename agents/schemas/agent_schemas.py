@@ -105,6 +105,13 @@ class AgentState(TypedDict, total=False):
     checkout_timeout_elapsed: bool
     checkout_recovery_message_count: int
 
+    # Quantitative ML evidence (LightGBM)
+    ml_probability: Optional[float]
+    ml_expected_value_paise: Optional[float]
+    ml_model_version: Optional[str]
+    ml_evidence: Optional[dict]
+    rule_retry_delay_hours: Optional[int]
+
     # Node outputs
     case_diagnosis: Optional[DiagnosisOutput]   # renamed from 'diagnosis' to avoid LangGraph conflict
     case_strategy: Optional[StrategyOutput]      # renamed from 'strategy'
@@ -146,6 +153,11 @@ def make_initial_state(
     llm_provider: str = "mock",
     subscription_id: Optional[str] = None,
     checkout_session_id: Optional[str] = None,
+    ml_probability: Optional[float] = None,
+    ml_expected_value_paise: Optional[float] = None,
+    ml_model_version: Optional[str] = None,
+    ml_evidence: Optional[dict] = None,
+    rule_retry_delay_hours: Optional[int] = None,
 ) -> AgentState:
     """Build the initial agent state with all required defaults."""
     return AgentState(
@@ -169,6 +181,11 @@ def make_initial_state(
         hours_since_last_attempt=hours_since_last_attempt,
         checkout_timeout_elapsed=checkout_timeout_elapsed,
         checkout_recovery_message_count=checkout_recovery_message_count,
+        ml_probability=ml_probability,
+        ml_expected_value_paise=ml_expected_value_paise,
+        ml_model_version=ml_model_version,
+        ml_evidence=ml_evidence,
+        rule_retry_delay_hours=rule_retry_delay_hours,
         case_diagnosis=None,
         case_strategy=None,
         policy_result=None,

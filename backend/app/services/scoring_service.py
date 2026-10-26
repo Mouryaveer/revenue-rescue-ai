@@ -67,5 +67,12 @@ class RecoveryScoringService:
         """
         EV(action) = P(recovery) * amount - intervention_cost
         Positive EV is necessary but NOT sufficient — policy always takes precedence.
+        Units: amount_paise (int), intervention_cost_paise (int), result in paise.
         """
         return (probability_of_recovery * amount_paise) - intervention_cost_paise
+
+    def get_ml_scorer(self):
+        """Lazy load MLScoringService for quantitative model predictions."""
+        from app.services.ml_scoring_service import MLScoringService
+        return MLScoringService()
+

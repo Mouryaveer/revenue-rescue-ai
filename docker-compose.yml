@@ -86,12 +86,10 @@ services:
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_APP_MODE=simulation
+      - BACKEND_URL=http://backend:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
 
 volumes:
   postgres_data:

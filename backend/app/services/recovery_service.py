@@ -114,12 +114,22 @@ class RecoveryService:
         return cust_uuid
 
     async def create_case_from_payment_failure(self, event: PaymentFailedEvent) -> RecoveryCase:
-        scorer = RecoveryScoringService()
-        score = scorer.score(
-            failure_reason=event.failure_reason,
-            amount_paise=event.amount_paise,
-            retry_count=0,
-        )
+        try:
+            from app.services.ml_scoring_service import MLScoringService
+            ml_scorer = MLScoringService()
+            score = ml_scorer.get_recovery_score({
+                "event_type": "FAILED_PAYMENT",
+                "failure_reason": event.failure_reason,
+                "amount_paise": event.amount_paise,
+                "retry_count": 0,
+            })
+        except Exception:
+            scorer = RecoveryScoringService()
+            score = scorer.score(
+                failure_reason=event.failure_reason,
+                amount_paise=event.amount_paise,
+                retry_count=0,
+            )
         customer_uuid = await self._get_or_create_customer_id(event.customer_id)
 
         case = RecoveryCase(
@@ -148,12 +158,22 @@ class RecoveryService:
         return case
 
     async def create_case_from_checkout_abandonment(self, event: CheckoutAbandonedEvent) -> RecoveryCase:
-        scorer = RecoveryScoringService()
-        score = scorer.score(
-            failure_reason="CHECKOUT_ABANDONED",
-            amount_paise=event.amount_paise,
-            retry_count=0,
-        )
+        try:
+            from app.services.ml_scoring_service import MLScoringService
+            ml_scorer = MLScoringService()
+            score = ml_scorer.get_recovery_score({
+                "event_type": "CHECKOUT_ABANDONED",
+                "failure_reason": "CHECKOUT_ABANDONED",
+                "amount_paise": event.amount_paise,
+                "retry_count": 0,
+            })
+        except Exception:
+            scorer = RecoveryScoringService()
+            score = scorer.score(
+                failure_reason="CHECKOUT_ABANDONED",
+                amount_paise=event.amount_paise,
+                retry_count=0,
+            )
         customer_uuid = await self._get_or_create_customer_id(event.customer_id)
 
         case = RecoveryCase(
@@ -245,8 +265,10 @@ class RecoveryService:
                 policy=policy_config,
                 llm_provider=settings.LLM_PROVIDER,
                 api_key=settings.OPENAI_API_KEY,
-                model=settings.OPENAI_MODEL,
+                model=settings.REASONING_MODEL if settings.LLM_PROVIDER in ("cloudflare", "cloudflare_workers_ai") else settings.OPENAI_MODEL,
                 payment_provider=payment_provider,
+                cloudflare_account_id=settings.CLOUDFLARE_ACCOUNT_ID,
+                cloudflare_api_token=settings.CLOUDFLARE_API_TOKEN,
             )
             final_state = agent.run(initial_state)
             await self._apply_agent_result(case, agent_run, final_state)

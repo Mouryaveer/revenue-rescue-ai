@@ -58,7 +58,32 @@ def node_risk_detection(state: AgentState) -> dict:
 def node_context_builder(state: AgentState) -> dict:
     trace = _add_trace(state, "context_builder")
     logger.info("node_context_builder", case_id=state.get("case_id"))
-    return trace
+
+    # Compute quantitative recovery probability and expected value via LightGBM
+    try:
+        from app.services.ml_scoring_service import MLScoringService
+        scorer = MLScoringService()
+        features = {
+            "event_type": state.get("event_type", "FAILED_PAYMENT"),
+            "failure_reason": state.get("failure_reason", "UNKNOWN"),
+            "payment_method": state.get("payment_method", "card"),
+            "device_type": state.get("device_type", "web"),
+            "country": state.get("country", "IN"),
+            "amount_paise": state.get("amount_paise", 0),
+            "retry_count": state.get("retry_count", 0),
+        }
+        evidence = scorer.get_quantitative_evidence(features)
+        return {
+            **trace,
+            "ml_probability": evidence["recovery_probability"],
+            "ml_expected_value_paise": evidence["expected_value_paise"],
+            "ml_model_version": evidence["model_version"],
+            "ml_evidence": evidence,
+            "rule_retry_delay_hours": evidence["rule_based_retry_delay_hours"],
+        }
+    except Exception as e:
+        logger.warning("context_builder_ml_scoring_failed", error=str(e), case_id=state.get("case_id"))
+        return trace
 
 
 # ── Node 3: Diagnosis (LLM or fallback) ───────────────────────────────────────
@@ -80,21 +105,30 @@ def node_diagnosis(state: AgentState, llm: LLMProvider) -> dict:
         checkout_timeout_elapsed=state.get("checkout_timeout_elapsed", False),
     )
 
+    # Append quantitative evidence context if available
+    ml_prob = state.get("ml_probability")
+    if ml_prob is not None:
+        ev_paise = state.get("ml_expected_value_paise", 0)
+        prompt += f"\nQuantitative Evidence:\n- LightGBM Probability: {ml_prob:.4f}\n- Expected Value: ₹{ev_paise / 100.0:.2f} INR\n"
+
     t0 = time.perf_counter()
     try:
+        from agents.nodes.llm_provider import clean_deepseek_reasoning_output, repair_json_string
         raw = llm.complete(SYSTEM_PROMPT, prompt)
-        data = json.loads(raw)
+        cleaned = clean_deepseek_reasoning_output(raw)
+        cleaned = repair_json_string(cleaned)
+        data = json.loads(cleaned)
         diag = DiagnosisOutput(**data)
     except Exception as e:
         logger.warning("diagnosis_llm_failure", error=str(e), case_id=state.get("case_id"))
-        diag = _fallback_diagnosis(failure_reason)
+        diag = _fallback_diagnosis(failure_reason, ml_probability=ml_prob)
 
     elapsed = int((time.perf_counter() - t0) * 1000)
     logger.info("diagnosis_complete", case_id=state.get("case_id"), confidence=diag.diagnosis_confidence, latency_ms=elapsed)
     return {**trace, "case_diagnosis": diag}
 
 
-def _fallback_diagnosis(failure_reason: str) -> DiagnosisOutput:
+def _fallback_diagnosis(failure_reason: str, ml_probability: float | None = None) -> DiagnosisOutput:
     strategy_map = {
         "INSUFFICIENT_FUNDS":   ("SCHEDULE_RETRY", 0.75),
         "EXPIRED_METHOD":       ("PAYMENT_METHOD_UPDATE", 0.60),
@@ -106,7 +140,10 @@ def _fallback_diagnosis(failure_reason: str) -> DiagnosisOutput:
         "CHECKOUT_ABANDONED":   ("CHECKOUT_RECOVERY", 0.55),
         "UNKNOWN":              ("ESCALATE", 0.20),
     }
-    strategy, confidence = strategy_map.get(failure_reason, ("ESCALATE", 0.20))
+    strategy, default_conf = strategy_map.get(failure_reason, ("ESCALATE", 0.20))
+    confidence = ml_probability if (ml_probability is not None and strategy != "ESCALATE") else default_conf
+    confidence = round(max(0.0, min(1.0, float(confidence))), 4)
+
     return DiagnosisOutput(
         diagnosis=f"fallback_{failure_reason.lower()}",
         diagnosis_confidence=confidence,
@@ -125,8 +162,7 @@ def node_strategy(state: AgentState, llm: LLMProvider) -> dict:
     trace = _add_trace(state, "strategy")
     diag: DiagnosisOutput | None = state.get("case_diagnosis")
     if not diag:
-        # Shouldn't happen but guard anyway
-        diag = _fallback_diagnosis(state.get("failure_reason", "UNKNOWN"))
+        diag = _fallback_diagnosis(state.get("failure_reason", "UNKNOWN"), state.get("ml_probability"))
 
     prompt = STRATEGY_PROMPT_TEMPLATE.format(
         case_id=state.get("case_id"),
@@ -140,21 +176,39 @@ def node_strategy(state: AgentState, llm: LLMProvider) -> dict:
         event_type=state.get("event_type"),
     )
 
+    # Append quantitative evidence & rule-based timing recommendation
+    delay_recommendation = state.get("rule_retry_delay_hours", 24)
+    ml_prob = state.get("ml_probability")
+    if ml_prob is not None:
+        ev_paise = state.get("ml_expected_value_paise", 0)
+        prompt += (
+            f"\nQuantitative Inputs:\n"
+            f"- LightGBM Probability: {ml_prob:.4f}\n"
+            f"- Expected Value: ₹{ev_paise / 100.0:.2f} INR\n"
+            f"- Rule-based Recommended Retry Delay: {delay_recommendation} hours (subject to policy authorization)\n"
+        )
+
     try:
+        from agents.nodes.llm_provider import clean_deepseek_reasoning_output, repair_json_string
         raw = llm.complete(SYSTEM_PROMPT, prompt)
-        data = json.loads(raw)
+        cleaned = clean_deepseek_reasoning_output(raw)
+        cleaned = repair_json_string(cleaned)
+        data = json.loads(cleaned)
         strat = StrategyOutput(**data)
+        # Ensure requested action contains delay_hours for retry strategies if omitted
+        if "RETRY" in strat.recovery_strategy and "delay_hours" not in strat.requested_action:
+            strat.requested_action["delay_hours"] = delay_recommendation
     except Exception as e:
         logger.warning("strategy_llm_failure", error=str(e), case_id=state.get("case_id"))
-        strat = _fallback_strategy(diag, state.get("amount_paise", 0))
+        strat = _fallback_strategy(diag, state.get("amount_paise", 0), delay_hours=delay_recommendation)
 
     logger.info("strategy_proposed", case_id=state.get("case_id"), strategy=strat.recovery_strategy)
     return {**trace, "case_strategy": strat}
 
 
-def _fallback_strategy(diag: DiagnosisOutput, amount_paise: int) -> StrategyOutput:
+def _fallback_strategy(diag: DiagnosisOutput, amount_paise: int, delay_hours: int = 24) -> StrategyOutput:
     strategy = diag.recommended_strategy
-    delay = 24 if "RETRY" in strategy else 0
+    delay = delay_hours if "RETRY" in strategy else 0
     return StrategyOutput(
         recovery_strategy=strategy,
         reason=f"Deterministic fallback strategy for {diag.failure_category}",

@@ -1,0 +1,10 @@
+{
+  "licenses": [
+    {
+      "name": "other"
+    }
+  ],
+  "id": "mouryaveer/revenuerescue-ai-training-data",
+  "description": "Synthetic payment-event training, validation, and test data for RevenueRescue AI. Includes customer profiles, history features, and a manifest. Labels are synthetic and for model training only.",
+  "title": "RevenueRescue AI Training Data"
+}

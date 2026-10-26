@@ -1,0 +1,23 @@
+{
+  "dataset_version": "synthetic-payment-events.v1",
+  "source": "C:\\Users\\moury\\data",
+  "output": "C:\\Users\\moury\\Coding\\Projects\\Big-Data\\RevenueRescue AI\\data\\training",
+  "customers": 100000,
+  "events": 100000,
+  "split_counts": {
+    "train": 69910,
+    "validation": 14924,
+    "test": 15166
+  },
+  "files": [
+    "payment_events.csv",
+    "train.csv",
+    "validation.csv",
+    "test.csv",
+    "customer_profiles.csv",
+    "customer_history_features.csv"
+  ],
+  "target_column": "recovered",
+  "label_semantics": "synthetic outcome for model training only; operational recovery remains verifier-authoritative",
+  "all_data_is_synthetic": true
+}
