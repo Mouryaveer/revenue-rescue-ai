@@ -66,3 +66,6 @@ models/artifacts/
 
 # Miscellaneous scratch notes (not README or docs)
 revenuerescue-ai-kiro-master-prompt.md
+
+# Local pre-upgrade backups
+backups/
